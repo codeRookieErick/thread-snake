@@ -10,9 +10,8 @@ setuptools.setup(
     author="Erick Fernando Mora Ramirez",
     author_email="erickfernandomoraramirez@gmail.com",
     description="A tiny server-side express-like library",
-    long_description=readfile("src/README.md"),
+    long_description=readfile("README.md"),
     long_description_content_type="text/markdown",
-    license_files = ('src/LICENSE',),
     url="https://github.com/codeRookieErick/thread-snake",
     project_urls={
         "Bug Tracker": "https://dev.moradev.dev/threadsnake/issues/",
