@@ -6,7 +6,7 @@ from hashlib import md5
 from uuid import uuid4
 from time import time
 from functools import reduce
-from pypress.myhttp.http_classes import HttpRequest, HttpResponse, Session, decode_querystring, map_dictionary
+from .myhttp.http_classes import HttpRequest, HttpResponse, Session, decode_querystring, map_dictionary
 from .pypress_classes import Application
 
 

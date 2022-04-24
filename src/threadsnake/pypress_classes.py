@@ -1,7 +1,5 @@
 from functools import reduce
 import json
-from pyhtml.html_clases import head
-from pypress.myhttp.http_classes import decode_querystring, map_dictionary
 from sys import path
 from types import FunctionType
 from typing import Callable, Dict, List

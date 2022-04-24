@@ -4,9 +4,20 @@ def readfile(filename):
     with open(filename, 'r', encoding='utf-8') as f:
         return f.read()
 
+def writefile(filename, data):
+    with open(filename, 'w', encoding='utf-8') as f:
+        f.write(data)
+
+def get_version():
+    versionFile = 'version.txt'
+    data = readfile(versionFile).split('.')
+    currentVersion = '.'.join([data[0], data[1], str(int(data[2]) + 1)])
+    writefile(versionFile, currentVersion)
+    return currentVersion
+    
 setuptools.setup(    
     name="threadsnake",
-    version="0.0.1",
+    version="0.0.5",
     author="Erick Fernando Mora Ramirez",
     author_email="erickfernandomoraramirez@gmail.com",
     description="A tiny server-side express-like library",
