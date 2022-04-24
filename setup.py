@@ -17,10 +17,10 @@ def get_version():
     
 setuptools.setup(    
     name="threadsnake",
-    version="0.0.5",
+    version="0.0.1",
     author="Erick Fernando Mora Ramirez",
     author_email="erickfernandomoraramirez@gmail.com",
-    description="A tiny server-side express-like library",
+    description="A tiny experimental server-side express-like library",
     long_description=readfile("README.md"),
     long_description_content_type="text/markdown",
     url="https://github.com/codeRookieErick/thread-snake",
