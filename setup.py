@@ -1,4 +1,5 @@
 import setuptools
+import os
 
 def readfile(filename):
     with open(filename, 'r', encoding='utf-8') as f:
@@ -9,15 +10,15 @@ def writefile(filename, data):
         f.write(data)
 
 def get_version():
-    versionFile = 'version.txt'
+    versionFile = os.path.join(os.path.dirname(__file__), 'version.txt')
     data = readfile(versionFile).split('.')
     currentVersion = '.'.join([data[0], data[1], str(int(data[2]) + 1)])
     writefile(versionFile, currentVersion)
     return currentVersion
-    
+
 setuptools.setup(    
     name="threadsnake",
-    version="0.0.1",
+    version="0.0.2",
     author="Erick Fernando Mora Ramirez",
     author_email="erickfernandomoraramirez@gmail.com",
     description="A tiny experimental server-side express-like library",

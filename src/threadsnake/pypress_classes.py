@@ -1,3 +1,4 @@
+from cgitb import reset
 from functools import reduce
 import json
 from sys import path
@@ -10,9 +11,32 @@ import os
 import re
 import time
 from importlib import __import__ as importpy
+import importlib.util
 
 def routes_to(name):
     return __import__(name).R
+
+'''
+Loads a library from specified path.
+Tanks to 
+[[https://stackoverflow.com/users/7779/sebastian-rittau|Sebastian Rittau|target="_blank"]] and 
+[[https://stackoverflow.com/users/3907364/raven|Raven|target="_blank"]]
+'''
+def import_library(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+def load_routers(folder:str = 'routers', onExcept:Callable = None):
+    result = {}
+    for f in [(i[:-3], os.sep.join(folder, i)) for i in os.listdir(folder) if i.endswith('.py')]:
+        try:
+            result = result[f[0]] = import_library(f[0], f[1]).R
+        except Exception as e:
+            if onExcept is not None:
+                onExcept(e)
+    return result
 
 class Router:
     def __init__(self):
