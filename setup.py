@@ -18,7 +18,7 @@ def get_version():
 
 setuptools.setup(    
     name="threadsnake",
-    version="0.0.2",
+    version="0.0.3",
     author="Erick Fernando Mora Ramirez",
     author_email="erickfernandomoraramirez@gmail.com",
     description="A tiny experimental server-side express-like library",
@@ -28,6 +28,7 @@ setuptools.setup(
     project_urls={
         "Bug Tracker": "https://dev.moradev.dev/threadsnake/issues/",
         "Documentation": "https://dev.moradev.dev/threadsnake/documentation/",
+        "Examples": "https://dev.moradev.dev/threadsnake/examples/",
     },
     package_data={
         "":["*.txt"]
