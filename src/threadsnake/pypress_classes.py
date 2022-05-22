@@ -17,11 +17,13 @@
 ##    mailto:erickfernandomoraramirez@gmail.com
 
 from cgitb import reset
+from dataclasses import replace
 from functools import reduce
 import json
 from sys import path
 from types import FunctionType
-from typing import Callable, Dict, List
+from typing import Any, Callable, Dict, List, Union
+
 from .myhttp import Server, HttpRequest, HttpResponse, Session, RequestSession
 from base64 import b64decode
 from uuid import uuid4
@@ -31,12 +33,11 @@ import time
 from importlib import __import__ as importpy
 import importlib.util
 
-def routes_to(name):
-    return __import__(name).R
+
 
 '''
 Loads a library from specified path.
-Tanks to 
+Thanks to 
 [[https://stackoverflow.com/users/7779/sebastian-rittau|Sebastian Rittau|target="_blank"]] and 
 [[https://stackoverflow.com/users/3907364/raven|Raven|target="_blank"]]
 '''
@@ -46,11 +47,23 @@ def import_library(name, path):
     spec.loader.exec_module(mod)
     return mod
 
+class RouterTemplate:
+    def __init__(self) -> None:
+        self.R:Router = None 
+
+def load_router(name, path) -> RouterTemplate:
+    return import_library(name, path)
+
+def routes_to(name:str):
+    path = name if name.endswith('.py') else name + '.py'
+    libName = 'lib'+str(uuid4()).replace('-', '')
+    return load_router(libName, path).R
+
 def load_routers(folder:str = 'routers', onExcept:Callable = None):
     result = {}
     for f in [(i[:-3], os.sep.join(folder, i)) for i in os.listdir(folder) if i.endswith('.py')]:
         try:
-            result = result[f[0]] = import_library(f[0], f[1]).R
+            result = result[f[0]] = load_router(f[0], f[1]).R
         except Exception as e:
             if onExcept is not None:
                 onExcept(e)
@@ -60,25 +73,37 @@ class Router:
     def __init__(self):
         #print('router created')
         self.routes = {}
+        self.callbackMutator:CallbackMutator = lambda a: a
 
-    def register_function(self, httpMethod, route):
-        ref = self
-        def inner(function):
+    def register_function(self, httpMethod:str, route:str):
+        ref:Router = self
+        def inner(function:Callback) -> Callback:
+            function = self.callbackMutator(function)
             if httpMethod.upper() not in ref.routes:
-            #if httpMethod.upper() not in Application.baseRoutes:
                 ref.routes[httpMethod.upper()] = {route: function}
-                #Application.baseRoutes[httpMethod.upper()] = {route: function}
             else:
                 ref.routes[httpMethod.upper()][route] = function
-                #Application.baseRoutes[httpMethod.upper()][route] = function
             return function
         return inner
+    
+    def use_globally(self, mutator):
+        callbackMutator = self.callbackMutator
+        def innerMutator(c):
+            return mutator(callbackMutator(c))
+        self.callbackMutator = innerMutator
+        return self
 
     def get(self, route):
         return self.register_function('GET', route)
 
     def post(self, route):
         return self.register_function('POST', route)
+    
+    def put(self, route):
+        return self.register_function('PUT', route)
+    
+    def delete(self, route):
+        return self.register_function('DELETE', route)
 
     def configure(self, handler):
         self.stack.append(handler)
@@ -87,11 +112,21 @@ class Router:
     def use_router(self, router, root):
         for method in router.routes:
             for action in router.routes[method]:
-                if method not in self.routes:
-                    self.routes[method] = {}
-                self.routes[method][f'{root}{action}'] = router.routes[method][action]
+                self.register_function(method,f'{root}{action}')(router.routes[method][action])
+                #if method not in self.routes:
+                #    self.routes[method] = {}
+                #self.routes[method][f'{root}{action}'] = router.routes[method][action]
         return self
-        
+
+    def serve_statically(self, route:str, content:Union[str, Callable[[Any, HttpRequest, HttpResponse],str]], encoding:str=None):
+        def sub(s:str, ss:str)->str:
+            return s if ss not in s else s[s.index(ss)+1:]
+        fileName = sub(sub(route, '/'), '\\')
+        def callback(app:Application, req:HttpRequest, res:HttpResponse):
+            data = content if isinstance(content, str) else content(app, req, res)
+            res.transmit_as_file(fileName, data, encoding=encoding)
+        self.get(route)(callback)
+        return self
 
     def __getattr__(self, method):
         def inner(route):
@@ -100,13 +135,12 @@ class Router:
 
 
 class Application(Server, Router):
-
     def __init__(self, port, connectionTimeout=None):
         Server.__init__(self, port, connectionTimeout)
         Router.__init__(self)
         self.stack = []
-        self.session = {}
-
+        self.session:RequestSession = None
+        
     def cli_loop(self, main_event: Callable):
         self.start()
         continueLoop = True
@@ -118,6 +152,15 @@ class Application(Server, Router):
                 break
             finally:
                 self.stop()
+                
+    def wait_exit(self, message:str = 'press [Enter] to exit...'):
+        try:
+            self.start()
+            input(message)
+        except:
+            pass
+        finally:
+            self.stop()
 
     def onReceive(self, clientPort, data, clientAddress):
         if(len(data) == 0): return
@@ -152,9 +195,9 @@ class Application(Server, Router):
         if req.method in self.routes:
             regularPaths = [i for i in self.routes[req.method]]
             for route in regularPaths:
-                pattern = re.sub(r":([\w]+)", r"(?P<\1>[\\w]+)", route)
+                pattern = re.sub(r"\{([\w]+)\:int\}", r"(?P<\1>[-]?[\\d]+)", route)
+                pattern = re.sub(r":([\w]+)", r"(?P<\1>[\\w]+)", pattern)
                 pattern = "^" + pattern + "$"
-                #print(f'{pattern} vs {req.path}')
                 match = re.match(pattern, req.path)
                 if match:
                     handler = self.routes[req.method][route]
@@ -170,15 +213,27 @@ class Application(Server, Router):
 
         stack.reverse()
         next()
-        clientPort.send(str(res).encode())
-
+        data = str(res).encode() if res.encoding is None else str(res).encode(res.encoding)
+        clientPort.send(data)
 
 Middleware = Callable[[Application, HttpRequest, HttpResponse, Callable[[], None]], None]
+Callback = Callable[[Application, HttpRequest, HttpResponse], None]
+ServerCallback = Callable[[HttpRequest, HttpResponse], None]
+DictProvider = Callable[[], Dict[str, Any]]
+CallbackMutator = Callable[[Callback], Callback]
 
-def BuildApplication(port: int, middlewares: List[Middleware], routers: Dict[str, Router]):
+def build_application(port: int, middlewares: List[Middleware], routers: Dict[str, Router]):
     app = Application(port)
     for m in middlewares:
         app.configure(m)
     for r in routers:
         app.use_router(routers[r], r)
+    return app
+
+def create_server(port:int, callback:ServerCallback) -> Application:
+    app = Application(port)
+    def innerMiddleware(application:Application, req:HttpRequest, res:HttpResponse, next):
+        callback(req, res)
+        next()
+    app.configure(innerMiddleware)
     return app

@@ -28,6 +28,7 @@ import uuid
 import os
 from enum import Enum, IntEnum
 
+
 class RedirectType(IntEnum):
     MOVED_PERMANENT = 301
     PERMANENT_REDIRECT = 308
@@ -37,9 +38,13 @@ class RedirectType(IntEnum):
     MULTIPLE_CHOICE = 301
     NOT_MODIFIED = 304
 
-path = os.sep.join(__file__.split(os.sep)[:-1]) + os.sep + 'response_codes.txt'
+def get_absolute_path(fileName):
+    return os.sep.join([os.sep.join(__file__.split(os.sep)[:-1]), fileName])
+
 responseCodes = {}
-with open(path, 'r') as f:
+threadsnakeIcon = ''
+
+with open(get_absolute_path('response_codes.txt'), 'r') as f:
     for l in [i.strip() for i in f.readlines()]:
         values = l.split('\t')
         if len(values) > 1:
@@ -47,6 +52,33 @@ with open(path, 'r') as f:
         else:
             print(f'Invalid line on response_codes.txt: {values}')
 
+with open(get_absolute_path('icon.txt'), 'rb') as f:
+    threadsnakeIcon = f.read().decode('ANSI')
+
+
+contentTypes = {
+    "text/": ["html", "css"],
+    "text/javascript": ["js"],
+    "text/html": ["htm"],
+    "application/": ["json", "xml", "pdf", "exe"],
+    "image/": ["gif", "png", "jpeg", "bmp", "webp"],
+    "image/jpeg": ["jpg"],
+    "image/x-icon": ["ico"],
+    "audio/": ["mpeg", "webm", "ogg", "midi", "wav"],
+    "text/plain": ["txt", "*"]
+}
+
+def get_content_type(path:str):
+    contentType = 'text/plain'
+    if '.' in path:
+        extension:str = path.split(".")[-1:][0]
+        for i in contentTypes:
+            if extension in contentTypes[i]:
+                contentType = i
+                if contentType.endswith("/"):
+                    contentType += extension
+                break
+    return contentType
 
 def decode_querystring(data):
     data = data.replace('+', ' ').replace('%20', ' ')#space
@@ -77,6 +109,11 @@ class HttpResponse:
         self.ended = False
         self.contentDisposition = ''
         self.cacheValue = None
+        self.encoding = None
+
+    def set_encoding(self, encoding:str):
+        self.encoding = encoding
+        return self
 
     def cache(self, cacheValue):
         self.cacheValue = cacheValue
@@ -119,13 +156,13 @@ class HttpResponse:
         with open(fileName, 'r') as f:
             self.body += f.read()
         self.status(200)
-        return self.content_type(contentType or "text/plain")
+        return self.content_type(contentType or get_content_type(fileName))
 
-    def transmit_as_file(self, fileName, data, contentType=None):
-        self.set_content_disposition('attachment', fileName)
+    def transmit_as_file(self, fileName, data, contentType=None, encoding = None):
+        self.set_content_disposition('attachment', fileName).set_encoding(encoding or 'UTF-8')
         self.body = data
         self.status(200)
-        return self.content_type(contentType or "text/plain")
+        return self.content_type(contentType or get_content_type(fileName))
 
     def set_content_disposition(self, contentDisposition, fileName = None):
         self.contentDisposition = contentDisposition
@@ -133,8 +170,9 @@ class HttpResponse:
             self.contentDisposition += f'; fileName="{fileName}"'
         return self
 
-    def download_file(self, path, fileName, contentType=None):
-        self.set_content_disposition('attachment', fileName)
+    def download_file(self, path, fileName, contentType=None, encoding = None):
+        self.set_content_disposition('attachment', fileName).set_encoding(encoding or 'UTF-8')
+        self.body = ""
         return self.read_file(path, contentType)
 
     def __str__(self):
@@ -185,6 +223,7 @@ class HttpRequest:
         self.querystring = self.url.split('?', 1)[1] if '?' in self.url else ''
         self.querystring = decode_querystring(self.querystring)
         self.path = self.url.split('?')[:1][0]
+        self.baseUrl = self.url if '?' not in self.url else self.url.split('?', 1)[0]
         self.params = map_dictionary(self.querystring, '&', '=')
         self.data = {}
 
@@ -255,7 +294,7 @@ class Server(Thread):
                     break
         finally:
             clientPort.settimeout(timeout)
-        raw = ''.join([i.decode() for i in rdata])
+        raw = ''.join([i.decode('ANSI') for i in rdata]) #I'm pretty scared about it. Decoding with ANSI is the most recent change
         return ''.join([i + '\n' for i in raw.splitlines()])
 
     def next_free(self, port, max_port=65535):
@@ -317,7 +356,7 @@ class Session:
         self.cookieName = cookieName or 'sessionId'
         self.sessions = {}
 
-    def ensure_session(self, req:HttpRequest, res:HttpResponse):
+    def ensure_session(self, req:HttpRequest, res:HttpResponse, reset:bool = False):
         sessionId = ''
         if self.cookieName not in req.cookies:
             sessionId = str(uuid.uuid4())
@@ -325,7 +364,7 @@ class Session:
             req.cookies[self.cookieName] = sessionId
         else:
             sessionId = req.cookies[self.cookieName]
-        if sessionId not in self.sessions:
+        if sessionId not in self.sessions or reset:
             self.sessions[sessionId] = {}
         return sessionId
 
@@ -354,3 +393,13 @@ class RequestSession:
 
     def __getitem__(self, key):
         return self.session.get(self.req, self.res, key)
+    
+    def try_get(self, key, defaultValue = None):
+        value = self.session.get(self.req, self.res, key)
+        if value is None:
+            value = defaultValue
+            self.session.set(self.req, self.res, key, value)
+        return value
+    
+    def reset_session(self):
+        self.session.ensure_session(self.req, self.res, True)
