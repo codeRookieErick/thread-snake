@@ -213,7 +213,7 @@ class Application(Server, Router):
 
         stack.reverse()
         next()
-        data = str(res).encode() if res.encoding is None else str(res).encode(res.encoding)
+        data = str(res).encode(res.encoding or 'latin1') #str(res).encode() if res.encoding is None else str(res).encode(res.encoding)
         clientPort.send(data)
 
 Middleware = Callable[[Application, HttpRequest, HttpResponse, Callable[[], None]], None]

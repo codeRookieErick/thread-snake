@@ -21,6 +21,7 @@ import json
 from re import L
 import re
 import socket
+from sys import maxsize
 from threading import Thread
 import threading
 import time
@@ -209,8 +210,8 @@ class HttpRequest:
         self.raw = raw
         self.authorization = {}
         self.files = {}
-        headerAndBody = self.raw.split('\n\n', 1)
-        self.headers = headerAndBody[0].split('\n')
+        headerAndBody = self.raw.split('\r\n\r\n', maxsplit=1)
+        self.headers = headerAndBody[0].split('\r\n')
         if len(headerAndBody) > 1:
             self.body = headerAndBody[1]
         else:
@@ -226,17 +227,11 @@ class HttpRequest:
         self.baseUrl = self.url if '?' not in self.url else self.url.split('?', 1)[0]
         self.params = map_dictionary(self.querystring, '&', '=')
         self.data = {}
-
-        #Soved with body_parser
-        #if self.method == 'POST' and len(self.body) != 0:
-        #    postParams = map_dictionary(self.body, '&', '=')
-        #    for p in postParams:
-        #        self.params[p] = postParams[p]
-        
         self.headers = dict([
             tuple([j.strip() for j in i.split(':', 1)]) for i in self.headers
             if len(i.split(':')) == 2
         ])
+        #print(self.headers)
         self.contentType = self.headers.get('Content-Type', None)
         self.cookies = {}
         if 'Cookie' in self.headers:
@@ -289,13 +284,16 @@ class Server(Thread):
             clientPort.settimeout(self.connectionTimeout)
             while True:
                 try:    
-                    rdata.append(clientPort.recv(self.maxPacket))
+                    rdata.extend(clientPort.recv(self.maxPacket))
                 except:
                     break
         finally:
             clientPort.settimeout(timeout)
-        raw = ''.join([i.decode('ANSI') for i in rdata]) #I'm pretty scared about it. Decoding with ANSI is the most recent change
-        return ''.join([i + '\n' for i in raw.splitlines()])
+        with open('datab.txt', 'wb') as f:
+            f.write(bytes(rdata))
+        raw = bytes(rdata).decode('latin1')#''.join([i for i in rdata]) #I'm pretty scared about it. Decoding with ANSI is the most recent change
+        #print(raw)
+        return raw#''.join([i + '\n' for i in raw.splitlines()])
 
     def next_free(self, port, max_port=65535):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

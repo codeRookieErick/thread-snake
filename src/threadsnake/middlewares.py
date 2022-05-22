@@ -95,32 +95,37 @@ de segundos definidos por el parametro [filesDuration]
 def multipart_form_data_parser(tempFilesFolder:str, filesDuration:int=60) -> Middleware:
     uploadedFiles = {}
     def inner_function(app:Application, req:HttpRequest, res:HttpResponse, next) -> None:
+        def save_bin(path, data):
+            with open(path, 'wb') as f:
+                f.write(data.encode('latin1'))
         if req.contentType != None and 'multipart/form-data' in req.contentType:
             contentType, boundary = [i.strip() for i in req.contentType.split(';')]
             req.contentType = contentType
             boundary = boundary.strip().replace('boundary=','')
             boundary = f'--{boundary}'
-            #print(boundary)
             bodyParameters = [i.strip() for i in req.body.strip().split(boundary) if len(i.strip()) != 0 and i != '--']
+            #n = 0
             for param in bodyParameters:
-                paramHeader, paramValue = param.split('\n\n', maxsplit=1)
-                paramHeader = paramHeader.replace('\n', '; ').replace(': ', '=').replace('"', '')
+                #n+=1
+                paramHeader, paramValue = param.split('\r\n\r\n', maxsplit=1)
+                #save_bin(f'data{n}.txt', paramValue)
+                paramHeader = paramHeader.replace('\r\n', '; ').replace(': ', '=').replace('"', '')
                 paramHeader = dict([tuple(i.split('=', maxsplit=2)) for i in paramHeader.split('; ')])
-                if 'name' in paramHeader and len(paramHeader['name']) > 0:
-                    req.params[paramHeader['name']] = paramValue
-                elif 'filename' in paramHeader:
+                #print(paramHeader)
+                if 'filename' in paramHeader:
                     fileName = paramHeader['filename']
                     tempFilePath = os.sep.join([tempFilesFolder, str(uuid4()).replace('-', '')])
                     try:
-                        with open(tempFilePath, 'w', encoding='ANSI') as file:
-                            file.write(paramValue)
-                            req.files[fileName] = {'tempFilePath':tempFilePath}
+                        save_bin(tempFilePath, paramValue)
+                        req.files[fileName] = {'tempFilePath':tempFilePath}
                         uploadedFiles[tempFilePath] = time() + filesDuration
                         for file in uploadedFiles:
                             if uploadedFiles[file] < time():
                                 os.remove(file)
                     except Exception as e:
                         print(str(e))
+                elif 'name' in paramHeader and len(paramHeader['name']) > 0:
+                    req.params[paramHeader['name']] = paramValue
         next()
     return inner_function
 
