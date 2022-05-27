@@ -1,4 +1,4 @@
-##    threadskane. A tiny experimental server-side express-like library.
+##    threadsnake. A tiny experimental server-side express-like library.
 ##    Copyright (C) 2022  Erick Fernando Mora Ramirez
 ##
 ##    This program is free software: you can redistribute it and/or modify
@@ -38,7 +38,7 @@ class ChoiceGenerator(Generator):
         if len(self.options) == 0:
             return None
         return random.choice(self.options)
-0    
+    
 class RangeGenerator(Generator):
     def __init__(self, maxValue: int = 255, minValue: int = 0):
         super().__init__() 

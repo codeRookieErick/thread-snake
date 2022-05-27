@@ -1,4 +1,4 @@
-##    threadskane. A tiny experimental server-side express-like library.
+##    threadsnake. A tiny experimental server-side express-like library.
 ##    Copyright (C) 2022  Erick Fernando Mora Ramirez
 ##
 ##    This program is free software: you can redistribute it and/or modify
@@ -161,9 +161,9 @@ def build_default_headers(baseHeaders: Dict[str, Any] = None) -> DictProvider:
     def inner() -> Dict[str, Any]:
         global requestNumber
         requestNumber += 1
-        headers = baseHeaders or {}
+        headers = baseHeaders or {"Powered-By":"Myself"}
         headers["Server-Epoch-Time"] = str(time())
-        headers["Powered-By"] = "Python threadSnake beta"
+        headers["Powered-By"] = "Python threadsnake beta"
         headers["Active-Since"] = since
         headers["Request-Count"] = requestNumber
         return headers

@@ -1,4 +1,4 @@
-##    threadskane. A tiny experimental server-side express-like library.
+##    threadsnake. A tiny experimental server-side express-like library.
 ##    Copyright (C) 2022  Erick Fernando Mora Ramirez
 ##
 ##    This program is free software: you can redistribute it and/or modify

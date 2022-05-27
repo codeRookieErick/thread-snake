@@ -1,4 +1,4 @@
-##    threadskane. A tiny experimental server-side express-like library.
+##    threadsnake. A tiny experimental server-side express-like library.
 ##    Copyright (C) 2022  Erick Fernando Mora Ramirez
 ##
 ##    This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 ##    mailto:erickfernandomoraramirez@gmail.com
 
 from functools import reduce
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 class HtmlNode:
     def render(self, tabLevel:int = 0):
@@ -83,6 +83,12 @@ def html(title:str):
     result = HtmlElement('html').append_child(head(title))
     result.append_child(HtmlElement('body', children=[link('google', 'www.google.com')]))
     return result
+
+def page(title:str, scripts:List[str] = [], styles:List[str] = []) -> Tuple[HtmlElement, HtmlElement]:
+    content = HtmlElement('div', {"class":"mainContent"})
+    html = HtmlElement('html').append_child(head(title, scripts, styles))
+    html.append_child(HtmlElement('body', children=[content]))
+    return html, content
 
 def header(title:str):
     return text_element(title, 'header')
