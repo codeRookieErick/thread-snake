@@ -37,6 +37,25 @@ class HtmlElement(HtmlNode):
         self.attributes = attributes or dict()
         self.children = children or []
         
+    def __getitem__(self, index):
+        res = []
+        for i in self.children:
+            if not isinstance(i, HtmlElement):
+                print('nothtml')
+                continue
+            if isinstance(index, int) and len(self.children) > index:
+                res = [self.children[index]]
+                break
+            if not isinstance(index, str):
+                raise Exception("Name should be int or string")
+            if index.startswith('.') and 'class' in i.attributes and index[1:] in i.attributes['class'].split(' '):
+                res.append(i)
+            elif index.startswith('#') and 'id' in i.attributes and i.attributes['id'] == index[1:]:
+                res.append(i)
+            elif i.tagName == index:
+                res.append(i)
+        return res
+    
     def render(self, tabLevel:int = 0):
         result = tabLevel * '\t' + f'<{self.tagName}'
         if(len(self.attributes) == 0 and len(self.children) == 0):

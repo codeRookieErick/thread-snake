@@ -1,4 +1,4 @@
-##    threadskane. A tiny experimental server-side express-like library.
+##    threadsnake. A tiny experimental server-side express-like library.
 ##    Copyright (C) 2022  Erick Fernando Mora Ramirez
 ##
 ##    This program is free software: you can redistribute it and/or modify
@@ -289,8 +289,6 @@ class Server(Thread):
                     break
         finally:
             clientPort.settimeout(timeout)
-        with open('datab.txt', 'wb') as f:
-            f.write(bytes(rdata))
         raw = bytes(rdata).decode('latin1')#''.join([i for i in rdata]) #I'm pretty scared about it. Decoding with ANSI is the most recent change
         #print(raw)
         return raw#''.join([i + '\n' for i in raw.splitlines()])
