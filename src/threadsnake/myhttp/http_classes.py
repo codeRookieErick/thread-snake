@@ -23,7 +23,7 @@ import re
 import socket
 from sys import maxsize
 from threading import Thread
-import threading
+import random
 import time
 import uuid
 import os
@@ -274,7 +274,7 @@ class Server(Thread):
     def onConnect(self, clientPort, clientAddress):
         pass
 
-    def onReceive(self, clientPort, data):
+    def onReceive(self, clientPort:socket.socket, data:str, clientAddress:str):
         raise NotImplementedError()
 
     def receive(self, clientPort):
@@ -305,8 +305,10 @@ class Server(Thread):
         raise IOError('no free ports')
 
     def run(self):
-        self.port = self.next_free(self.port)
-        print(f'listening on {self.port}...')
+        port = self.next_free(self.port)
+        if port != self.port:
+            print(f'Port {self.port} in use. Listening on {port} instead...')
+        self.port = port
         self.serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.serverSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
         self.serverSocket.bind(('', self.port))
@@ -346,6 +348,43 @@ class Server(Thread):
                 self.stop()
                 break
         #print('block ended!')
+
+class Bridge:
+    def __init__(self, port:int, address:str = 'localhost') -> None:
+        self.port = port
+        self.address = address
+        
+    def send(self, data:str, encoding:str='latin1', bufferSize:int=1024) -> str:
+        result = ''
+        target = (self.address, self.port)
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
+            client.connect(target)
+            client.sendall(data.encode(encoding))
+            while data:
+                data = client.recv(bufferSize)
+                if not data:
+                    break
+                result += data.decode(encoding)
+        return result
+
+class Proxy(Server):
+    def __init__(self, port=80, connectionTimeout=None, targets = []):
+        Server.__init__(self, port, connectionTimeout)
+        self.targets = dict([(i, []) for i in targets])
+
+    def onReceive(self, clientPort, data, clientAddress):
+        target = self.get_target(clientAddress[0])
+        result = Bridge(target[1], target[0]).send(data, 'latin1')
+        clientPort.send(result.encode('latin1'))
+        
+    def get_target(self, address:str):
+        targets = [i for i in self.targets]
+        for t in targets:
+            if address in self.targets[t]:
+                return t
+        t = random.choice(targets)
+        self.targets[t].append(address)
+        return t
 
 class Session:
     def __init__(self, cookieName = None):

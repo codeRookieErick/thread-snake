@@ -16,6 +16,7 @@
 ##
 ##    mailto:erickfernandomoraramirez@gmail.com
 
+import atexit
 import os
 import json
 from typing import Any, Callable, Dict, List
@@ -24,7 +25,9 @@ from hashlib import md5
 from uuid import uuid4
 from time import time
 from functools import reduce
-from .myhttp.http_classes import HttpRequest, HttpResponse, Session, decode_querystring, get_content_type, map_dictionary
+
+from threadsnake.tools import PhpServer
+from .myhttp.http_classes import Bridge, HttpRequest, HttpResponse, Session, decode_querystring, get_content_type, map_dictionary
 from .pypress_classes import Application, Callback, DictProvider, Middleware
 
 ##Midlewares de nivel global
@@ -264,6 +267,18 @@ def uses_cache(cacheSize:int) -> Callable[[Callback], Callback]:
                 cache[reqHash] = str(res)
         return inner
     return decorator
+
+
+def uses_php(path:str, pointsTo:str, port:int, hostName:str='localhost', phpPath:str='php') -> Middleware:
+    srv = PhpServer(pointsTo, port, hostName, phpPath).start()
+    atexit.register(lambda: srv.stop())
+    print(f'PHP server hosted at {hostName}:{port}')
+    def inner(app:Application, req:HttpRequest, res:HttpResponse, next) -> None:
+        if req.url.startswith(path):
+            data = Bridge(port, hostName).send(req.raw)
+            res.cache(data)
+        next()
+    return inner
 
 '''Minimal implementation of a middleware wich prints every endpoint registered'''
 def pico_swagger(app:Application, req:HttpRequest, res:HttpResponse) -> None:

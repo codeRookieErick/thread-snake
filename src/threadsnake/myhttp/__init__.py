@@ -1,1 +1,1 @@
-from .http_classes import HttpRequest, HttpResponse, Server, Session, RequestSession
+from .http_classes import HttpRequest, HttpResponse, Server, Session, RequestSession, Proxy, Bridge

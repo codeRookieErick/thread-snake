@@ -56,6 +56,10 @@ class HtmlElement(HtmlNode):
                 res.append(i)
         return res
     
+    def for_each(self, selector, action):
+        for c in self[selector]:
+            action(c)
+    
     def render(self, tabLevel:int = 0):
         result = tabLevel * '\t' + f'<{self.tagName}'
         if(len(self.attributes) == 0 and len(self.children) == 0):
