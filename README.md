@@ -2,14 +2,17 @@
 
 **Threadsnake** is an experimental server side library. It was created as an educational (self-educational) project in order to explain how does [HTTP/1.1](https://developer.mozilla.org/es/docs/Web/HTTP/Basics_of_HTTP/Evolution_of_HTTP) works (I'm lying, it was to understand it).
 
-    from threadsnake.core import *
+```python
+from threadsnake.core import *
 
-    app = Application(get_port(80))
+app = Application(get_port(80))
 
-    @app.get('/')
-    def main(app:Application, req:HttpRequest, res:HttpResponse):
-        res.end('Served by threadsnake!')
+@app.get('/')
+def main(app:Application, req:HttpRequest, res:HttpResponse):
+    res.end('Served by threadsnake!')
 
+app.wait_exit('Press [Enter] to exit...')
+```
 _The previous example sets a server wich listens at port 80 (or the next available) and responds to every get resquest to the path /_
 
 Threadsnake is designed to be lightweight and simple, yet able to serve hypertext and other resources sucessfully. Futhermore, as it was build over the [The Python Standard Library](https://docs.python.org/3/library/), it has no third party dependencies.

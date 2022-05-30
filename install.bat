@@ -1,2 +1,2 @@
 pip uninstall threadsnake
-pip install dist/threadsnake-0.0.5-py3-none-any.whl
+pip install dist/threadsnake-0.0.6-py3-none-any.whl
