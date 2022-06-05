@@ -54,7 +54,7 @@ with open(get_absolute_path('response_codes.txt'), 'r') as f:
             print(f'Invalid line on response_codes.txt: {values}')
 
 with open(get_absolute_path('icon.txt'), 'rb') as f:
-    threadsnakeIcon = f.read().decode('ANSI')
+    threadsnakeIcon = f.read().decode('latin1')
 
 
 contentTypes = {
