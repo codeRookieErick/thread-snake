@@ -247,52 +247,49 @@ class ServerWorker(Thread):
         self.action()
 
 class Server(Thread):
-    def __init__(self, port=80, connectionTimeout=None):
+    def __init__(self, port:int = 80, hostname:str = 'localhost', backlog: int = 5, readTimeout: float = 0.1, bufferSize: int = 1024):
         Thread.__init__(self)
-        self.connectionTimeout = connectionTimeout or 0.1
-        self.maxPacket = 32768
+        self.running = False
         self.port = port
-        self.server_active = True
-
-    def stop(self):
-        if self.serverSocket != None:
-            self.server_active = False
-            srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            srv.connect(('localhost', self.port))
-            srv.shutdown(socket.SHUT_RDWR)
-            srv.close()
-            self.serverSocket = None
-
-    def __exit__(self):
+        self.hostname = hostname
+        self.backlog = backlog
+        self.readTimeout = readTimeout
+        self.bufferSize = bufferSize
+    
+    def __enter__(self):
+        self.start()
+    
+    def __exit__(self, type, value, traceback):
         self.stop()
-
+    
     def __del__(self):
         self.stop()
-
-    def onConnect(self, clientPort, clientAddress):
-        pass
-
-    def onReceive(self, clientPort:socket.socket, data:str, clientAddress:str):
+    
+    def get_socket(self) -> socket.socket:
+        return socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    
+    def on_receive(self, data:bytes, clientPort:socket.socket, clientAddress:str):
         raise NotImplementedError()
-
-    def receive(self, clientPort):
-        rdata = []
-        timeout = clientPort.gettimeout()
+    
+    def on_accept(self, client:socket.socket, address:str):
+        data = []
+        timeout = client.gettimeout()
         try:
-            clientPort.settimeout(self.connectionTimeout)
+            client.settimeout(self.readTimeout)
             while True:
-                try:    
-                    rdata.extend(clientPort.recv(self.maxPacket))
+                try:
+                    buffer:bytes = client.recv(self.bufferSize)
+                    if len(buffer) == 0:
+                        break
+                    data.extend(buffer)
                 except:
                     break
         finally:
-            clientPort.settimeout(timeout)
-        raw = bytes(rdata).decode('latin1')#''.join([i for i in rdata]) #I'm pretty scared about it. Decoding with ANSI is the most recent change
-        #print(raw)
-        return raw#''.join([i + '\n' for i in raw.splitlines()])
-
+            client.settimeout(timeout)
+        self.on_receive(bytes(data), client, address)
+    
     def next_free(self, port, max_port=65535):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock = self.get_socket()
         while port <= max_port:
             try:
                 sock.bind(('', port))
@@ -301,51 +298,137 @@ class Server(Thread):
             except OSError:
                 port += 1
         raise IOError('no free ports')
-
+    
     def run(self):
+        if self.running:
+            return
+        self.running = True
         port = self.next_free(self.port)
         if port != self.port:
-            print(f'Port {self.port} in use. Listening on {port} instead...')
-        self.port = port
-        self.serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.serverSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
-        self.serverSocket.bind(('', self.port))
-        self.serverSocket.listen(5)
-        while self.server_active:
+            print(f'Port {self.port} already in use. Using port {port} instead.')
+            self.port = port
+        srv = self.get_socket()
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
+        srv.bind((self.hostname, self.port))
+        srv.listen(self.backlog)
+        while self.running:
             try:
-                #print('ON Accept')
-                (clientSocket, address) = self.serverSocket.accept()
-                if not self.server_active:
-                    break
-                #print('ACCEPT ENDED')
-                def handler():
-                    localSocketRef = clientSocket
-                    self.onConnect(localSocketRef, address)
-                    try:
-                        raw_data = self.receive(localSocketRef)
-                        self.onReceive(localSocketRef, raw_data, address)
-                    except socket.timeout:
-                        print('timeout')
-                    except Exception as e:
-                        print('Exception in handler')
-                        print(e)
-                        pass
-                    finally:
-                        try:
-                            localSocketRef.close()
-                        except:
-                            print('Error closing the socket...')
-                ServerWorker(handler).start()
-            except OSError as o:
-                print('There was an OSError!')
-                self.stop()
-                break
+                (client, address) = srv.accept()
+                Thread(target=(lambda :self.on_accept(client, address))).start()
             except Exception as e:
-                print('Exception in listen loop')
-                print(e)
-                self.stop()
-                break
-        #print('block ended!')
+                pass
+    
+    def cancel_listen(self):
+        clt = self.get_socket()
+        clt.connect((self.hostname, self.port))
+        clt.close()
+        
+    def stop(self):
+        if self.running:
+            self.running = False
+            self.cancel_listen()
+            self.join()
+
+##class Server(Thread):
+##    def __init__(self, port=80, connectionTimeout=None):
+##        Thread.__init__(self)
+##        self.connectionTimeout = connectionTimeout or 0.1
+##        self.maxPacket = 32768
+##        self.port = port
+##        self.server_active = True
+##
+##    def stop(self):
+##        if self.serverSocket != None:
+##            self.server_active = False
+##            srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+##            srv.connect(('localhost', self.port))
+##            srv.shutdown(socket.SHUT_RDWR)
+##            srv.close()
+##            self.serverSocket = None
+##
+##    def __exit__(self):
+##        self.stop()
+##
+##    def __del__(self):
+##        self.stop()
+##
+##    def onConnect(self, clientPort, clientAddress):
+##        pass
+##
+##    def onReceive(self, clientPort:socket.socket, data:str, clientAddress:str):
+##        raise NotImplementedError()
+##
+##    def receive(self, clientPort):
+##        rdata = []
+##        timeout = clientPort.gettimeout()
+##        try:
+##            clientPort.settimeout(self.connectionTimeout)
+##            while True:
+##                try:    
+##                    rdata.extend(clientPort.recv(self.maxPacket))
+##                except:
+##                    break
+##        finally:
+##            clientPort.settimeout(timeout)
+##        raw = bytes(rdata).decode('latin1')#''.join([i for i in rdata]) #I'm pretty scared about it. Decoding with ANSI is the most recent change
+##        #print(raw)
+##        return raw#''.join([i + '\n' for i in raw.splitlines()])
+##
+##    def next_free(self, port, max_port=65535):
+##        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+##        while port <= max_port:
+##            try:
+##                sock.bind(('', port))
+##                sock.close()
+##                return port
+##            except OSError:
+##                port += 1
+##        raise IOError('no free ports')
+##
+##    def run(self):
+##        port = self.next_free(self.port)
+##        if port != self.port:
+##            print(f'Port {self.port} in use. Listening on {port} instead...')
+##        self.port = port
+##        self.serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+##        self.serverSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
+##        self.serverSocket.bind(('', self.port))
+##        self.serverSocket.listen(5)
+##        while self.server_active:
+##            try:
+##                #print('ON Accept')
+##                (clientSocket, address) = self.serverSocket.accept()
+##                if not self.server_active:
+##                    break
+##                #print('ACCEPT ENDED')
+##                def handler():
+##                    localSocketRef = clientSocket
+##                    self.onConnect(localSocketRef, address)
+##                    try:
+##                        raw_data = self.receive(localSocketRef)
+##                        self.onReceive(localSocketRef, raw_data, address)
+##                    except socket.timeout:
+##                        print('timeout')
+##                    except Exception as e:
+##                        print('Exception in handler')
+##                        print(e)
+##                        pass
+##                    finally:
+##                        try:
+##                            localSocketRef.close()
+##                        except:
+##                            print('Error closing the socket...')
+##                ServerWorker(handler).start()
+##            except OSError as o:
+##                print('There was an OSError!')
+##                self.stop()
+##                break
+##            except Exception as e:
+##                print('Exception in listen loop')
+##                print(e)
+##                self.stop()
+##                break
+##        #print('block ended!')
 
 class Bridge:
     def __init__(self, port:int, address:str = 'localhost') -> None:

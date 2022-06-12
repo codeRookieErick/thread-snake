@@ -126,8 +126,8 @@ class Router:
 
 
 class Application(Server, Router):
-    def __init__(self, port, connectionTimeout=None):
-        Server.__init__(self, port, connectionTimeout)
+    def __init__(self, port: int = 80, hostname: str = 'localhost', backlog: int = 5, readTimeout: float = 0.1, bufferSize: int = 1024):
+        Server.__init__(self, port, hostname, backlog, readTimeout, bufferSize)
         Router.__init__(self)
         self.stack = []
         self.session:RequestSession = None
@@ -153,7 +153,8 @@ class Application(Server, Router):
         finally:
             self.stop()
 
-    def onReceive(self, clientPort, data, clientAddress):
+    def on_receive(self, data, clientPort, clientAddress):
+        data = data.decode('latin1')
         if(len(data) == 0): return
         req = None
         res = HttpResponse()
