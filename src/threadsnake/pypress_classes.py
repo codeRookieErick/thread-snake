@@ -187,9 +187,10 @@ class Application(Server, Router):
         if req.method in self.routes:
             regularPaths = [i for i in self.routes[req.method]]
             for route in regularPaths:
-                pattern = re.sub(r"\{([\w]+)\:int\}", r"(?P<\1>[-]?[\\d]+)", route)
-                pattern = re.sub(r"\{([\w]+)\:float\}", r"(?P<\1>[-]?[\\d]+[\\.]?[\\d]?)", route)
-                pattern = re.sub(r"\{([\w]+)\}", r"(?P<\1>[\\w]+)", pattern)
+                pattern = route
+                pattern = re.sub(r"{([\w]+)\:int}", r"(?P<\1>[-]?[\\d]+)", pattern)
+                pattern = re.sub(r"{([\w]+)\:float}", r"(?P<\1>[-]?[\\d]+[\\.]?[\\d]?)", pattern)
+                pattern = re.sub(r"{([\w]+)}", r"(?P<\1>[\\w]+)", pattern)
                 pattern = "^" + pattern + "$"
                 match = re.match(pattern, req.path)
                 if match:
