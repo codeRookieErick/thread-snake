@@ -16,20 +16,14 @@
 ##
 ##    mailto:erickfernandomoraramirez@gmail.com
 
-from cgitb import reset
-from dataclasses import replace
-from functools import reduce
-import json
-from sys import path
+
 from types import FunctionType
 from typing import Any, Callable, Dict, List, Union
 
 from .myhttp import Server, HttpRequest, HttpResponse, Session, RequestSession
-from base64 import b64decode
 from uuid import uuid4
 import os
 import re
-import time
 from importlib import __import__ as importpy
 import importlib.util
 
@@ -113,9 +107,6 @@ class Router:
         for method in router.routes:
             for action in router.routes[method]:
                 self.register_function(method,f'{root}{action}')(router.routes[method][action])
-                #if method not in self.routes:
-                #    self.routes[method] = {}
-                #self.routes[method][f'{root}{action}'] = router.routes[method][action]
         return self
 
     def serve_statically(self, route:str, content:Union[str, Callable[[Any, HttpRequest, HttpResponse],str]], encoding:str=None):
