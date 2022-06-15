@@ -23,6 +23,7 @@ import socket
 from threading import Thread
 import random
 import time
+from typing import Any
 import uuid
 import os
 from enum import IntEnum
@@ -79,7 +80,7 @@ def get_content_type(path:str):
                 break
     return contentType
 
-def decode_querystring(data):
+def decode_querystring(data:str):
     data = data.replace('+', ' ').replace('%20', ' ')#space
     data = data.replace('%2B', '+')#space
     data = data.replace('%7E', '~')#space
@@ -88,7 +89,7 @@ def decode_querystring(data):
         data = data.replace(ref[0], ref[1])
     return data
 
-def map_dictionary(data, rowSeparator, keySeparator):
+def map_dictionary(data:str, rowSeparator:str, keySeparator:str):
     return dict([
         tuple([j.strip() for j in i.split(keySeparator, 1)])
         for i in data.split(rowSeparator) if len(i.split(keySeparator)) == 2
@@ -114,21 +115,21 @@ class HttpResponse:
         self.encoding = encoding
         return self
 
-    def cache(self, cacheValue):
+    def cache(self, cacheValue:str):
         self.cacheValue = cacheValue
 
-    def end(self, data, status = None):
+    def end(self, data:str, status:int = None):
         self.ended = True
         self.status(status or 200)
         return self.write(data)
 
-    def redirect(self, url, statusCode = None):
+    def redirect(self, url:str, statusCode:int = None):
         self.status(statusCode or RedirectType.TEMPORARY_REDIRECT)
         self.headers = {"Location": url}
         self.body = ""
         return self
 
-    def status(self, resposeStatus, resposeText=None):
+    def status(self, resposeStatus:int, resposeText:str=None):
         self.resposeStatus = resposeStatus
         if resposeText == None and resposeStatus in responseCodes:
             self.resposeText = responseCodes[resposeStatus]
@@ -136,40 +137,40 @@ class HttpResponse:
             self.resposeText = resposeText or "OK"
         return self
 
-    def content_type(self, value):
+    def content_type(self, value:str):
         self.headers["Content-Type"] = value
         return self
 
-    def json(self, data):
+    def json(self, data:Any):
         self.body = json.dumps(data)
         return self.content_type("text/json")
 
-    def write(self, data):
+    def write(self, data:str):
         self.body += data
         return self
 
-    def html(self, data):
+    def html(self, data:str):
         return self.content_type('text/html').write(str(data))
 
-    def read_file(self, fileName, contentType=None):
+    def read_file(self, fileName:str, contentType:str=None):
         with open(fileName, 'r') as f:
             self.body += f.read()
         self.status(200)
         return self.content_type(contentType or get_content_type(fileName))
 
-    def transmit_as_file(self, fileName, data, contentType=None, encoding = None):
+    def transmit_as_file(self, fileName:str, data:str, contentType:str = None, encoding:str = None):
         self.set_content_disposition('attachment', fileName).set_encoding(encoding or 'UTF-8')
         self.body = data
         self.status(200)
         return self.content_type(contentType or get_content_type(fileName))
 
-    def set_content_disposition(self, contentDisposition, fileName = None):
+    def set_content_disposition(self, contentDisposition:str, fileName:str = None):
         self.contentDisposition = contentDisposition
         if fileName is not None:
             self.contentDisposition += f'; fileName="{fileName}"'
         return self
 
-    def download_file(self, path, fileName, contentType=None, encoding = None):
+    def download_file(self, path:str, fileName:str, contentType:str = None, encoding:str = None):
         self.set_content_disposition('attachment', fileName).set_encoding(encoding or 'UTF-8')
         self.body = ""
         return self.read_file(path, contentType)
@@ -190,7 +191,7 @@ class HttpResponse:
         result += self.body
         return result
 
-    def set_cookie(self, name, value, durationSec = None, domain = None, path = None):
+    def set_cookie(self, name:str, value:str, durationSec:float = None, domain:str = None, path:str = None):
         cookieString = value
         if durationSec != None: 
             expireUTC = time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.gmtime(time.time() + durationSec))
@@ -200,11 +201,11 @@ class HttpResponse:
         self.cookieHeaders.append(f"{name}={cookieString}")
 
 class HttpRequest:
-    def __init__(self, raw, address):
+    def __init__(self, raw:str, address:str):
         self.clientAddress = address
         self.load(raw)
 
-    def load(self, raw):
+    def load(self, raw:str):
         self.raw = raw
         self.authorization = {}
         self.files = {}
@@ -247,7 +248,7 @@ class ServerWorker(Thread):
         self.action()
 
 class Server(Thread):
-    def __init__(self, port:int = 80, hostname:str = 'localhost', backlog: int = 5, readTimeout: float = 0.1, bufferSize: int = 1024):
+    def __init__(self, port:int = 80, hostname:str = 'localhost', backlog: int = 5, readTimeout: float = 0.025, bufferSize: int = 1024):
         Thread.__init__(self)
         self.running = False
         self.port = port
@@ -287,8 +288,9 @@ class Server(Thread):
         finally:
             client.settimeout(timeout)
         self.on_receive(bytes(data), client, address)
-    
-    def next_free(self, port, max_port=65535):
+        client.close()
+        
+    def next_free(self, port:int, max_port=65535):
         sock = self.get_socket()
         while port <= max_port:
             try:
@@ -297,7 +299,8 @@ class Server(Thread):
                 return port
             except OSError:
                 port += 1
-        raise IOError('no free ports')
+        else:
+            raise IOError('no free ports')
     
     def run(self):
         if self.running:
@@ -453,7 +456,7 @@ class Proxy(Server):
         Server.__init__(self, port, connectionTimeout)
         self.targets = dict([(i, []) for i in targets])
 
-    def onReceive(self, clientPort, data, clientAddress):
+    def onReceive(self, clientPort:int, data:str, clientAddress):
         target = self.get_target(clientAddress[0])
         result = Bridge(target[1], target[0]).send(data, 'latin1')
         clientPort.send(result.encode('latin1'))
@@ -504,13 +507,13 @@ class RequestSession:
         self.res = res
         self.session = session
     
-    def __setitem__(self, key, value):
+    def __setitem__(self, key:str, value):
         self.session.set(self.req, self.res, key, value)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key:str):
         return self.session.get(self.req, self.res, key)
     
-    def try_get(self, key, defaultValue = None):
+    def try_get(self, key:str, defaultValue = None):
         value = self.session.get(self.req, self.res, key)
         if value is None:
             value = defaultValue

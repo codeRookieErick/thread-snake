@@ -17,6 +17,7 @@
 ##    mailto:erickfernandomoraramirez@gmail.com
 
 
+import time
 from types import FunctionType
 from typing import Any, Callable, Dict, List, Union
 
@@ -164,7 +165,7 @@ class Application(Server, Router):
             print(e)
             print(data)
             res.status(403, "BadRequest")
-            clientPort.send(str(res).encode())
+            clientPort.send(str(res).encode('latin1'))
             return
 
         stack = self.stack.copy()
@@ -186,6 +187,7 @@ class Application(Server, Router):
 
         if req.method in self.routes:
             regularPaths = [i for i in self.routes[req.method]]
+            m = time.time()
             for route in regularPaths:
                 pattern = route
                 pattern = re.sub(r"{([\w]+)\:int}", r"(?P<\1>[-]?[\\d]+)", pattern)
@@ -204,7 +206,7 @@ class Application(Server, Router):
                         next()
                     stack.append(middleware)
                     break
-
+            print(time.time()-m)
         stack.reverse()
         next()
         data = str(res).encode(res.encoding or 'latin1') #str(res).encode() if res.encoding is None else str(res).encode(res.encoding)
@@ -216,11 +218,11 @@ ServerCallback = Callable[[HttpRequest, HttpResponse], None]
 DictProvider = Callable[[], Dict[str, Any]]
 CallbackMutator = Callable[[Callback], Callback]
 
-def build_application(port: int, middlewares: List[Middleware], routers: Dict[str, Router]):
+def build_application(port: int, middlewares: List[Middleware] = None, routers: Dict[str, Router] = None):
     app = Application(port)
-    for m in middlewares:
+    for m in middlewares or []:
         app.configure(m)
-    for r in routers:
+    for r in routers or dict():
         app.use_router(routers[r], r)
     return app
 
