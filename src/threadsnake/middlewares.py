@@ -29,6 +29,7 @@ from functools import reduce
 from threadsnake.tools import PhpServer
 from .myhttp.http_classes import Bridge, HttpRequest, HttpResponse, Session, decode_querystring, get_content_type, map_dictionary
 from .pypress_classes import Application, Callback, DictProvider, Middleware
+from .markdown import create_python_markdown_parser
 
 ##Midlewares de nivel global
 '''
@@ -319,3 +320,39 @@ def pico_swagger(app:Application, req:HttpRequest, res:HttpResponse) -> None:
             html += tag(link(r), "div", {"class":"sw-h3"})
             funct = app.routes[i][r]
     res.end(tag(html, "body", {"class":"sw-panel"})).content_type('text/html')
+
+'''Allows serving markdown files statically as html. Partially supported.'''
+def serve_static_markdown(base:str = 'markdown', extension:str = '.md', maxCached:int = 10, encoding:str = 'latin1') -> Middleware:
+    markdownCache = {}
+    markdownKeys = []
+    parser = create_python_markdown_parser()
+    def serve_markdown(app:Application, req:HttpRequest, res:HttpResponse, next):
+        path = (req.path if not req.path.startswith('/') else req.path[1:]).replace('/', os.sep)
+        path = os.sep.join([base, path]) + extension
+        if os.path.exists(path) and os.path.isfile(path):
+            data = ''
+            with open(path, 'r', encoding=encoding) as r:
+                data = r.read()
+            hash = md5(data.encode(encoding)).hexdigest()
+            if hash in markdownCache:
+                data = markdownCache[hash]
+            else:
+                data, style = parser.parse_str(data)
+                data = f'''
+                    <html>
+                        <head>
+                            <style>{style}</style>
+                        </head>
+                        <body>
+                            {data}
+                        </body>
+                    </html>
+                '''
+                markdownCache[hash] = data
+                markdownKeys.insert(0, hash)
+                while len(markdownKeys) > maxCached:
+                    del markdownCache[markdownKeys.pop()]
+            res.status(200).html(data)
+        else:
+            next()
+    return serve_markdown
