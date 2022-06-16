@@ -1,6 +1,7 @@
 {
     "```python([\\w\\W]+?)```": {
         "rep": "<div style=\"padding:0em 1em; color:#BCF; background:black; font-family:candara;\">\\1</div>",
+        "styles":"body{font-family:candara, arial; padding:2em; background-color:#222;color:#eee;} a{text-decoration:none;color:#D40;}",
         "inner": {
             "(\\r\\n|\\r|\\n)": "\r\n<br/>\r\n",
             "(    |\t)": "&nbsp;&nbsp;&nbsp;&nbsp;",
