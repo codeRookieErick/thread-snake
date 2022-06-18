@@ -201,6 +201,13 @@ class HttpResponse:
         self.cookieHeaders.append(f"{name}={cookieString}")
 
 class HttpRequest:
+    __slots__ = [
+        'clientAddress', 'raw', 'authorization', 
+        'files', 'headers', 'body', 'method', 
+        'httpVersion', 'url', 'querystring', 
+        'path', 'baseUrl', 'params', 'data', 
+        'headers', 'contentType', 'cookies'
+    ]
     def __init__(self, raw:str, address:str):
         self.clientAddress = address
         self.load(raw)
@@ -211,18 +218,16 @@ class HttpRequest:
         self.files = {}
         headerAndBody = self.raw.split('\r\n\r\n', maxsplit=1)
         self.headers = headerAndBody[0].split('\r\n')
-        if len(headerAndBody) > 1:
-            self.body = headerAndBody[1]
-        else:
-            self.body = ''
+        self.body = '' if len(headerAndBody) <= 1 else headerAndBody[1]
         firstLine = self.headers[:1][0].split(' ')
         self.headers = self.headers[1:]
         self.method = firstLine[0]
         self.httpVersion = firstLine[2] if len(firstLine) >= 2 else 'HTTP/1.1'
         self.url = firstLine[1] if len(firstLine) >= 1 else ''
-        self.querystring = self.url.split('?', 1)[1] if '?' in self.url else ''
-        self.querystring = decode_querystring(self.querystring)
+        self.querystring = decode_querystring(self.url.split('?', 1)[1] if '?' in self.url else '')
         self.path = self.url.split('?')[:1][0]
+        if not self.path.endswith('/'):
+            self.path += '/'
         self.baseUrl = self.url if '?' not in self.url else self.url.split('?', 1)[0]
         self.params = map_dictionary(self.querystring, '&', '=')
         self.data = {}
@@ -230,14 +235,10 @@ class HttpRequest:
             tuple([j.strip() for j in i.split(':', 1)]) for i in self.headers
             if len(i.split(':')) == 2
         ])
-        #print(self.headers)
         self.contentType = self.headers.get('Content-Type', None)
         self.cookies = {}
         if 'Cookie' in self.headers:
             self.cookies = dict([tuple([j.strip() for j in i.split('=')]) for i in self.headers['Cookie'].split(';') if len(i.split('=')) == 2])
-        pass
-
-
 
 class ServerWorker(Thread):
     def __init__(self, action):
@@ -331,107 +332,6 @@ class Server(Thread):
             self.running = False
             self.cancel_listen()
             self.join()
-
-##class Server(Thread):
-##    def __init__(self, port=80, connectionTimeout=None):
-##        Thread.__init__(self)
-##        self.connectionTimeout = connectionTimeout or 0.1
-##        self.maxPacket = 32768
-##        self.port = port
-##        self.server_active = True
-##
-##    def stop(self):
-##        if self.serverSocket != None:
-##            self.server_active = False
-##            srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-##            srv.connect(('localhost', self.port))
-##            srv.shutdown(socket.SHUT_RDWR)
-##            srv.close()
-##            self.serverSocket = None
-##
-##    def __exit__(self):
-##        self.stop()
-##
-##    def __del__(self):
-##        self.stop()
-##
-##    def onConnect(self, clientPort, clientAddress):
-##        pass
-##
-##    def onReceive(self, clientPort:socket.socket, data:str, clientAddress:str):
-##        raise NotImplementedError()
-##
-##    def receive(self, clientPort):
-##        rdata = []
-##        timeout = clientPort.gettimeout()
-##        try:
-##            clientPort.settimeout(self.connectionTimeout)
-##            while True:
-##                try:    
-##                    rdata.extend(clientPort.recv(self.maxPacket))
-##                except:
-##                    break
-##        finally:
-##            clientPort.settimeout(timeout)
-##        raw = bytes(rdata).decode('latin1')#''.join([i for i in rdata]) #I'm pretty scared about it. Decoding with ANSI is the most recent change
-##        #print(raw)
-##        return raw#''.join([i + '\n' for i in raw.splitlines()])
-##
-##    def next_free(self, port, max_port=65535):
-##        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-##        while port <= max_port:
-##            try:
-##                sock.bind(('', port))
-##                sock.close()
-##                return port
-##            except OSError:
-##                port += 1
-##        raise IOError('no free ports')
-##
-##    def run(self):
-##        port = self.next_free(self.port)
-##        if port != self.port:
-##            print(f'Port {self.port} in use. Listening on {port} instead...')
-##        self.port = port
-##        self.serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-##        self.serverSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
-##        self.serverSocket.bind(('', self.port))
-##        self.serverSocket.listen(5)
-##        while self.server_active:
-##            try:
-##                #print('ON Accept')
-##                (clientSocket, address) = self.serverSocket.accept()
-##                if not self.server_active:
-##                    break
-##                #print('ACCEPT ENDED')
-##                def handler():
-##                    localSocketRef = clientSocket
-##                    self.onConnect(localSocketRef, address)
-##                    try:
-##                        raw_data = self.receive(localSocketRef)
-##                        self.onReceive(localSocketRef, raw_data, address)
-##                    except socket.timeout:
-##                        print('timeout')
-##                    except Exception as e:
-##                        print('Exception in handler')
-##                        print(e)
-##                        pass
-##                    finally:
-##                        try:
-##                            localSocketRef.close()
-##                        except:
-##                            print('Error closing the socket...')
-##                ServerWorker(handler).start()
-##            except OSError as o:
-##                print('There was an OSError!')
-##                self.stop()
-##                break
-##            except Exception as e:
-##                print('Exception in listen loop')
-##                print(e)
-##                self.stop()
-##                break
-##        #print('block ended!')
 
 class Bridge:
     def __init__(self, port:int, address:str = 'localhost') -> None:

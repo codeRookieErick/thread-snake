@@ -17,8 +17,9 @@
 ##    mailto:erickfernandomoraramirez@gmail.com
 
 
+from functools import reduce
 import time
-from types import FunctionType
+from types import FunctionType, ModuleType
 from typing import Any, Callable, Dict, List, Union
 
 from .myhttp import Server, HttpRequest, HttpResponse, Session, RequestSession
@@ -36,33 +37,17 @@ Thanks to
 [[https://stackoverflow.com/users/7779/sebastian-rittau|Sebastian Rittau|target="_blank"]] and 
 [[https://stackoverflow.com/users/3907364/raven|Raven|target="_blank"]]
 '''
-def import_library(name, path):
+def import_library(name, path, modulePreload:Callable[[ModuleType],None] = None):
     spec = importlib.util.spec_from_file_location(name, path)
     mod = importlib.util.module_from_spec(spec)
+    if modulePreload is not None:
+        modulePreload(mod)
     spec.loader.exec_module(mod)
     return mod
 
 class RouterTemplate:
     def __init__(self) -> None:
-        self.R:Router = None 
-
-def load_router(name, path) -> RouterTemplate:
-    return import_library(name, path)
-
-def routes_to(name:str):
-    path = name if name.endswith('.py') else name + '.py'
-    libName = 'lib'+str(uuid4()).replace('-', '')
-    return load_router(libName, path).R
-
-def load_routers(folder:str = 'routers', onExcept:Callable = None):
-    result = {}
-    for f in [(i[:-3], os.sep.join(folder, i)) for i in os.listdir(folder) if i.endswith('.py')]:
-        try:
-            result = result[f[0]] = load_router(f[0], f[1]).R
-        except Exception as e:
-            if onExcept is not None:
-                onExcept(e)
-    return result
+        self.R:Router = None
 
 class Router:
     def __init__(self):
@@ -72,6 +57,12 @@ class Router:
 
     def register_function(self, httpMethod:str, route:str):
         ref:Router = self
+        if not route.endswith('/'):
+            route += '/'
+        if not route.startswith('/'):
+            route = '/' + route
+        while '//' in route:
+            route = route.replace('//', '/')
         def inner(function:Callback) -> Callback:
             function = self.callbackMutator(function)
             if httpMethod.upper() not in ref.routes:
@@ -231,3 +222,32 @@ def create_server(port:int, callback:ServerCallback) -> Application:
         next()
     app.configure(innerMiddleware)
     return app
+
+
+routers:Dict[str, ModuleType] = {}
+def load_router(name, path) -> RouterTemplate:
+    def assign_router(mod:ModuleType) -> None:
+        global routers
+        mod.R = Router()
+        routers[name] = mod
+    return import_library(name, path, assign_router)
+
+def export(caller:str) -> Router:
+    global routers
+    return routers[caller].R
+    
+def routes_to(name:str):
+    path = name if name.endswith('.py') else name + '.py'
+    libName = 'threadsnake.router.to_'+str(uuid4()).replace('-', '')
+    return load_router(libName, path).R
+
+def routes_to_folder(folder:str = 'routers', onExcept:Callable[[Exception,], None] = None) -> Dict[str, Router]:
+    result:Dict[str, Router] = {}
+    files = os.listdir(folder)
+    for f in [(i[:-3], os.sep.join(folder, i)) for i in files if i.endswith('.py')]:
+        try:
+            result = result[f[0]] = load_router(f[0], f[1]).R
+        except Exception as e:
+            if onExcept is not None:
+                onExcept(e)
+    return result
