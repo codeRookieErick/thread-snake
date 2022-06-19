@@ -22,6 +22,8 @@ import time
 from types import FunctionType, ModuleType
 from typing import Any, Callable, Dict, List, Union
 
+from threadsnake.myhttp.logging import log_error, log_info, log_load, log_success, log_warning
+
 from .myhttp import Server, HttpRequest, HttpResponse, Session, RequestSession
 from uuid import uuid4
 import os
@@ -54,6 +56,7 @@ class Router:
         #print('router created')
         self.routes = {}
         self.callbackMutator:CallbackMutator = lambda a: a
+        self.logRouteConfig = False
 
     def register_function(self, httpMethod:str, route:str):
         ref:Router = self
@@ -63,6 +66,8 @@ class Router:
             route = '/' + route
         while '//' in route:
             route = route.replace('//', '/')
+        if self.logRouteConfig:
+            log_warning(f"Route configured [{httpMethod.upper()}] {route}") ##TOKEN TO FIND
         def inner(function:Callback) -> Callback:
             function = self.callbackMutator(function)
             if httpMethod.upper() not in ref.routes:
@@ -123,6 +128,7 @@ class Application(Server, Router):
         Router.__init__(self)
         self.stack = []
         self.session:RequestSession = None
+        self.logRouteConfig = True
         
     def cli_loop(self, main_event: Callable):
         self.start()
@@ -139,7 +145,8 @@ class Application(Server, Router):
     def wait_exit(self, message:str = 'press [Enter] to exit...'):
         try:
             self.start()
-            input(message)
+            log_info(message)
+            input('')
         except:
             pass
         finally:
@@ -153,12 +160,12 @@ class Application(Server, Router):
         try:
             req = HttpRequest(data, clientAddress)
         except Exception as e:
-            print(e)
-            print(data)
+            log_error(e) ##TOKEN TO FIND
             res.status(403, "BadRequest")
             clientPort.send(str(res).encode('latin1'))
             return
-
+        
+        log_info(f'response pipeline created') ##TOKEN TO FIND
         stack = self.stack.copy()
 
         def next():
@@ -166,17 +173,20 @@ class Application(Server, Router):
                 stack.pop()(self, req, res, next)
         
         if ':' in req.path:
+            log_warning(f'potential query:pass params detected') ##TOKEN TO FIND
             pathParts = req.path.split('/')
             newPath = []
             for i in pathParts:
                 queryPassParam = i.split(':')
                 if len(queryPassParam) == 2:
+                    log_load(f'query:pass param {queryPassParam[0]} resolved to {queryPassParam[1]}') ##TOKEN TO FIND
                     req.params[queryPassParam[0]] = queryPassParam[1]
                 else:
                     newPath.append(i)
             req.path = '/'.join(newPath)
 
         if req.method in self.routes:
+            log_success(f'method {req.method} found in registered routes') ##TOKEN TO FIND
             regularPaths = [i for i in self.routes[req.method]]
             for route in regularPaths:
                 pattern = route
@@ -186,10 +196,13 @@ class Application(Server, Router):
                 pattern = "^" + pattern + "$"
                 match = re.match(pattern, req.path)
                 if match:
+                    log_success(f'request {req.url} matches {route}') ##TOKEN TO FIND
                     handler = self.routes[req.method][route]
                     queryParams = match.groupdict()
                     for i in queryParams:
+                        log_load(f'param {i} set to {queryParams[i]}') ##TOKEN TO FIND
                         req.params[i] = queryParams[i]
+                    log_success(f'middleware for {route} add to pipeline') ##TOKEN TO FIND
                     def middleware(app, req, res, next):
                         res.status(200)
                         handler(app, req, res)
@@ -197,7 +210,9 @@ class Application(Server, Router):
                     stack.append(middleware)
                     break
         stack.reverse()
+        log_info(f'pipeline begin') ##TOKEN TO FIND
         next()
+        log_info(f'pipeline end') ##TOKEN TO FIND
         data = str(res).encode(res.encoding or 'latin1') #str(res).encode() if res.encoding is None else str(res).encode(res.encoding)
         clientPort.send(data)
 

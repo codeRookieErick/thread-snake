@@ -1,14 +1,15 @@
 # Threadsnake
 
-[![](https://dev.moradev.dev/nano-badges/nano-badge/0.0.14_[beta]/version/mustard/gray/arial)](https://pypi.org/project/threadsnake/#history)
+[![](https://dev.moradev.dev/nano-badges/nano-badge/0.0.15_[beta]/version/mustard/gray/candara)](https://pypi.org/project/threadsnake/#history)
 
-![](https://dev.moradev.dev/nano-badges/nano-badge/3.6/python/blue/gray/arial)
+![](https://dev.moradev.dev/nano-badges/nano-badge/3.6/python/blue/gray/candara)
 
-[![](https://dev.moradev.dev/nano-badges/nano-badge/Github/repo/green/gray/arial)](https://github.com/codeRookieErick/thread-snake)
+[![](https://dev.moradev.dev/nano-badges/nano-badge/Github/repo/green/gray/candara)](https://github.com/codeRookieErick/thread-snake)
 
-[![](https://dev.moradev.dev/nano-badges/nano-badge/Pypi/repo/blue/gray/arial)](https://pypi.org/project/threadsnake/)
+[![](https://dev.moradev.dev/nano-badges/nano-badge/Pypi/repo/blue/gray/candara)](https://pypi.org/project/threadsnake/)
 
-**Threadsnake** is an experimental server side library. It was created as an educational (self-educational) project in order to explain how does [HTTP/1.1](https://developer.mozilla.org/es/docs/Web/HTTP/Basics_of_HTTP/Evolution_of_HTTP) works (I'm lying, it was to understand it).
+**Threadsnake** is an experimental ser
+ver side library. It was created as an educational (self-educational) project in order to explain how does [HTTP/1.1](https://developer.mozilla.org/es/docs/Web/HTTP/Basics_of_HTTP/Evolution_of_HTTP) works (I'm lying, it was to understand it).
 
 ```python
 from threadsnake.core import *

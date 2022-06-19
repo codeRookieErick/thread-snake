@@ -23,11 +23,12 @@ import socket
 from threading import Thread
 import random
 import time
+from turtle import color
 from typing import Any
 import uuid
 import os
 from enum import IntEnum
-
+from .logging import *
 
 class RedirectType(IntEnum):
     MOVED_PERMANENT = 301
@@ -70,6 +71,7 @@ contentTypes = {
 
 def get_content_type(path:str):
     contentType = 'text/plain'
+    log_info('getting content-type from path') ##TOKEN_TO_FIND
     if '.' in path:
         extension:str = path.split(".")[-1:][0]
         for i in contentTypes:
@@ -78,15 +80,18 @@ def get_content_type(path:str):
                 if contentType.endswith("/"):
                     contentType += extension
                 break
+    log_success(f'content-type resolved to {contentType}') ##TOKEN_TO_FIND
     return contentType
 
 def decode_querystring(data:str):
+    log_info('decoding querystring') ##TOKEN_TO_FIND
     data = data.replace('+', ' ').replace('%20', ' ')#space
     data = data.replace('%2B', '+')#space
     data = data.replace('%7E', '~')#space
     references = [(i, chr(int(re.findall(r'[\d]+', i)[0]))) for i in re.findall(r'&#[\d]+;', data)]
     for ref in references:
         data = data.replace(ref[0], ref[1])
+    log_success(f'querystring resolved') ##TOKEN_TO_FIND
     return data
 
 def map_dictionary(data:str, rowSeparator:str, keySeparator:str):
@@ -97,6 +102,7 @@ def map_dictionary(data:str, rowSeparator:str, keySeparator:str):
 
 class HttpResponse:
     def __init__(self):
+        log_info(f'response created') ##TOKEN_TO_FIND
         self.resposeStatus = 404
         self.resposeText = 'NotFound'
         self.headers = {
@@ -112,19 +118,23 @@ class HttpResponse:
         self.encoding = None
 
     def set_encoding(self, encoding:str):
+        log_info(f'encoding set to {encoding}') ##TOKEN_TO_FIND
         self.encoding = encoding
         return self
 
     def cache(self, cacheValue:str):
+        log_info(f'cache set') ##TOKEN_TO_FIND
         self.cacheValue = cacheValue
 
     def end(self, data:str, status:int = None):
         self.ended = True
         self.status(status or 200)
+        log_info(f'response ended') ##TOKEN_TO_FIND
         return self.write(data)
 
     def redirect(self, url:str, statusCode:int = None):
         self.status(statusCode or RedirectType.TEMPORARY_REDIRECT)
+        log_info(f'request redirected to {url}') ##TOKEN_TO_FIND
         self.headers = {"Location": url}
         self.body = ""
         return self
@@ -138,29 +148,35 @@ class HttpResponse:
         return self
 
     def content_type(self, value:str):
+        log_info(f'response content-type set to {value}') ##TOKEN_TO_FIND
         self.headers["Content-Type"] = value
         return self
 
     def json(self, data:Any):
         self.body = json.dumps(data)
+        log_info(f'json response set') ##TOKEN_TO_FIND
         return self.content_type("text/json")
 
     def write(self, data:str):
         self.body += data
+        log_info(f'data with length of {len(data)} bytes append to the body response') ##TOKEN_TO_FIND
         return self
 
     def html(self, data:str):
+        log_info(f'html response set') ##TOKEN_TO_FIND
         return self.content_type('text/html').write(str(data))
 
     def read_file(self, fileName:str, contentType:str=None):
         with open(fileName, 'r') as f:
             self.body += f.read()
+        log_info(f'file {fileName} read from disk') ##TOKEN_TO_FIND
         self.status(200)
         return self.content_type(contentType or get_content_type(fileName))
 
     def transmit_as_file(self, fileName:str, data:str, contentType:str = None, encoding:str = None):
         self.set_content_disposition('attachment', fileName).set_encoding(encoding or 'UTF-8')
         self.body = data
+        log_info(f'data with length of {len(data)} bytes set as file response') ##TOKEN_TO_FIND
         self.status(200)
         return self.content_type(contentType or get_content_type(fileName))
 
@@ -168,6 +184,7 @@ class HttpResponse:
         self.contentDisposition = contentDisposition
         if fileName is not None:
             self.contentDisposition += f'; fileName="{fileName}"'
+        log_info(f'content disposition set to {self.contentDisposition}') ##TOKEN_TO_FIND
         return self
 
     def download_file(self, path:str, fileName:str, contentType:str = None, encoding:str = None):
@@ -189,6 +206,7 @@ class HttpResponse:
         result += reduce(lambda a, b: a + b, mappedHeaders)
         result += '\n'
         result += self.body
+        log_info(f'response rendered') ##TOKEN_TO_FIND
         return result
 
     def set_cookie(self, name:str, value:str, durationSec:float = None, domain:str = None, path:str = None):
@@ -198,6 +216,7 @@ class HttpResponse:
             cookieString += f"; Expires={expireUTC}"
         if domain != None: cookieString += f"; Domain={domain}"
         if path != None: cookieString += f"; Path={path}"
+        log_info(f'cookie set: {name}={cookieString}') ##TOKEN_TO_FIND
         self.cookieHeaders.append(f"{name}={cookieString}")
 
 class HttpRequest:
@@ -213,6 +232,7 @@ class HttpRequest:
         self.load(raw)
 
     def load(self, raw:str):
+        log_load(f'request loaded from {self.clientAddress}') ##TOKEN_TO_FIND
         self.raw = raw
         self.authorization = {}
         self.files = {}
@@ -304,31 +324,37 @@ class Server(Thread):
             raise IOError('no free ports')
     
     def run(self):
+        log_warning(f'server starting...') ##TOKEN_TO_FIND
         if self.running:
             return
         self.running = True
         port = self.next_free(self.port)
         if port != self.port:
-            print(f'Port {self.port} already in use. Using port {port} instead.')
+            log_warning(f'Port {self.port} already in use. Using port {port} instead.')
             self.port = port
         srv = self.get_socket()
         srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
         srv.bind((self.hostname, self.port))
         srv.listen(self.backlog)
+        log_success(f'server sucessfully started') ##TOKEN_TO_FIND
         while self.running:
             try:
+                log_success(f'listening for new requests') ##TOKEN_TO_FIND
                 (client, address) = srv.accept()
+                log_info(f'new requests from {address}') ##TOKEN_TO_FIND
                 Thread(target=(lambda :self.on_accept(client, address))).start()
             except Exception as e:
-                pass
+                log_error('unexpected error has occur')
     
     def cancel_listen(self):
+        log_warning(f'canceling listen')
         clt = self.get_socket()
         clt.connect((self.hostname, self.port))
         clt.close()
         
     def stop(self):
         if self.running:
+            log_warning(f'server stop requested')
             self.running = False
             self.cancel_listen()
             self.join()
