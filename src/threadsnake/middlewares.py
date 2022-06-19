@@ -32,10 +32,8 @@ from .pypress_classes import Application, Callback, DictProvider, Middleware
 from .markdown import create_python_markdown_parser
 
 ##Midlewares de nivel global
-'''
-Configura el soporte para sesiones. Recibe una instancia global de Session.
-'''
 def session(s:Session) -> Middleware:
+    '''Configures session support. Receives an global Session instance'''
     def inner(app: Application, req: HttpRequest, res: HttpResponse, next) -> None:
         app.session = s.create_session(req, res)
         next()
@@ -43,11 +41,8 @@ def session(s:Session) -> Middleware:
 
 
 
-'''
-Configura el soporte para archivos estáticos. "folder" se refiere a la ruta donde se buscarán los 
-archivos estáticos.
-'''
 def static_files(folder: str) -> Middleware:
+    '''Configurates static files support. "folder" reffers to the path where files will be search for.'''
     def result(app: Application, req: HttpRequest, res: HttpResponse, next:Callable) -> None:
         fileToSearch = os.sep.join([folder, req.path.replace('\\', '/')])
         #if 'scr' in req.path:
@@ -60,11 +55,11 @@ def static_files(folder: str) -> Middleware:
             next()
     return result
 
-'''
-Configura el control de acceso. Decodifica los parametros de autorización de la consulta.
-Soporta "Bearer Token" y "Basic Authentication".
-'''
 def authorization(app:Application, req:HttpRequest, res:HttpResponse, next) -> None:
+    '''
+    Configures access control. Decodes authorization parameters. Currently supported: "Bearer Token" 
+    and "Basic Authentication".
+    '''
     authKey = 'Authorization'
     if authKey in req.headers:
         authType, authValue = req.headers[authKey].split(' ')
@@ -77,11 +72,11 @@ def authorization(app:Application, req:HttpRequest, res:HttpResponse, next) -> N
         del req.headers[authKey]
     next()
 
-'''
-Configura el soporte para solicitudes del tipo "x-www-form-urlencoded". Carga los parametros de la
-solitud enviados de esta manera en la propiedad "params" del objeto req.
-'''
 def body_parser(app:Application, req:HttpRequest, res:HttpResponse, next) -> None:
+    '''
+    Configures "x-www-form-urlencoded" request type support. Loads request parameters sent to the
+    params dict of the current HttpRequest instance.
+    '''
     if req.contentType != None and 'x-www-form-urlencoded' in req.contentType:
         params = map_dictionary(decode_querystring(req.body.strip()), '&', '=')
         for p in params:
@@ -89,14 +84,13 @@ def body_parser(app:Application, req:HttpRequest, res:HttpResponse, next) -> Non
     next()
 
 
-'''
-Configura el soporte para solicitudes del tipo "multipart/form-data". Carga los parametros de la
-solitud enviados de esta manera en la propiedad "params" del objeto req. Adicionalmente, en caso de 
-existir archivos subidos en la solicitud, los guarda en la carpeta [tempFilesFolder] de manera temporal,
-estableciendo la propiedad [files] del objeto req. Los archivos estarán disponibles durante la cantidad
-de segundos definidos por el parametro [filesDuration]
-''' 
 def multipart_form_data_parser(tempFilesFolder:str, filesDuration:int=60) -> Middleware:
+    '''
+    Configures "multipart/form-data" request type support. Loads request parameters sent to the
+    params dict of the current HttpRequest instance. Futhermore, if it identifies files uploaded, saves them
+    in the "tempFilesFolder" and sets them in the "files" dict of the current HttpRequest instance. Those
+    files will be available for at least the number of seconds defined in the "filesDuration" parameter.
+    '''
     uploadedFiles = {}
     def inner_function(app:Application, req:HttpRequest, res:HttpResponse, next) -> None:
         def save_bin(path, data):
@@ -133,9 +127,11 @@ def multipart_form_data_parser(tempFilesFolder:str, filesDuration:int=60) -> Mid
         next()
     return inner_function
 
-'''Configura el soporte para solicitudes del tipo "json". En caso de existir un parametro json en el cuerpo
-de la solicitud, establece la propiedad [data] del objeto req con dicho valor.'''
 def json_body_parser(app:Application, req:HttpRequest, res:HttpResponse, next) -> None:
+    '''
+    Configures "json" request type. If identifies a valid json in the request body, it sets
+    the dict property of the current HttpRequest instance with the json content.
+    '''
     if req.contentType in ['application/json', 'text/json']:
         try:
             req.data = json.loads(req.body.strip())
@@ -143,14 +139,16 @@ def json_body_parser(app:Application, req:HttpRequest, res:HttpResponse, next) -
             res.status(400).write("Can't decode json body")
     next()
 
-'''Configura la cabecera de control de acceso cors'''
 def cors(app: Application, req: HttpRequest, res: HttpResponse, next) -> None:
+    '''Configures CORS.'''
     res.headers['Access-Control-Allow-Origin'] = "*"
     next()
 
-'''Establece cabeceras por defecto en todas las respuestas. La cabeceras son determinadas bajo demanda
-por el diccionario devuelto por la funcion [headersProvider]'''
 def default_headers(headersProvider: DictProvider) -> Middleware:
+    '''
+    Sets response default headers. Those headers are determined by the result of the function "headersProvider"
+    on every request.
+    '''
     def child1(app: Application, req: HttpRequest, res: HttpResponse, next) -> None:
         headers = headersProvider()
         for h in headers:
@@ -160,8 +158,10 @@ def default_headers(headersProvider: DictProvider) -> Middleware:
 
 since = time()
 requestNumber = 0
-'''Provee una función estandar para construir las cabeceras'''
 def build_default_headers(baseHeaders: Dict[str, Any] = None) -> DictProvider:
+    '''
+    Provides a standar function for building default headers.
+    '''
     def inner() -> Dict[str, Any]:
         global requestNumber
         requestNumber += 1
@@ -173,25 +173,29 @@ def build_default_headers(baseHeaders: Dict[str, Any] = None) -> DictProvider:
         return headers
     return inner
 
-'''Identifica al cliente imprimiendolo por la consola'''
 def identify_client(app: Application, req: HttpRequest, res:HttpResponse, next) -> None:
+    '''
+    Identifies client printing it in the console.
+    '''
     print(f'connection from {req.clientAddress}')
     next()
 
-'''Ejecuta una accion determinada [action] siempre que se identifique la cabecera [headerName]'''
 def header_inspector(headerName: str, action: Callable) -> Middleware:
+    '''
+    Calls "action" every time the header "headerName" is identified in a request.
+    '''
     def result(app: Application, req: HttpRequest, res: HttpResponse, next)  -> None:
         if headerName in req.headers:
             action(req.headers[headerName])
         next()
     return result
 
-'''
-Generaliza la evaluacion de solicitudes, usando una funcion [predicate] que recibe un objeto req.
-En caso de no cumplirse el [predicate] retorna al cliente una respuesta "400 Bad Request". En caso
-de cumplirse el [predicate] continua la ejecucion normal.
-'''
 def validates_request(predicate:Callable[[HttpRequest], bool], onFailMessage:str = None, onFailStatus:int = 400) -> Callable[[Callback], Callback]:
+    '''
+    Generalizes request validation using a "predicate" function wich receives the current HttpRequestInstance
+    and returns a boolean. If the result is false, the client receives an "onFailStatus" status code and an
+    "onFailMessage" message. Otherwise the pipeline executes normally.
+    '''
     def child1(middleware:Callback) -> Callback:
         def child2(app:Application, req:HttpRequest, res: HttpResponse) -> None:
             if predicate(req):
@@ -201,19 +205,25 @@ def validates_request(predicate:Callable[[HttpRequest], bool], onFailMessage:str
         return child2
     return child1
 
-'''Especializacion de "request_validator" que evalua el content type de la solicitud.'''
 def accepts(contentTypes:List[str]) -> Callable[[Callback], Callback]:
+    '''
+    Validates the HttpRequest content-type against the list of "contentTypes", with are the allowed ones. 
+    Returns an UnsuportedMediaType status code if the content-type is not in the list. Otherwise the 
+    pipeline executes normally. Delegates to "validates_request".
+    '''
     def child1(middleware:Callback) -> Callback:
         return validates_request(lambda r: r.contentType in contentTypes, onFailStatus=415)(middleware)
     return child1
 
-'''Especializacion de "accepts" que espera un content type de Json.'''
 def requires_json(middleware:Callback) -> Callback:
+    '''Especialization of accepts wich just allows json requests.'''
     return accepts(['application/json', 'text/json'])(middleware)
 
-'''Mide el tiempo que transcurre desde la llamada de este middleware hasta el final de la pila de ejecucion.
-Idealmente mide el tiempo aproximado que tardó el servidor en servir la solicitud.'''
+
 def time_measure(app:Application, req:HttpRequest, res:HttpResponse, next) -> None:
+    '''
+    Ideally measures the time than all pipeline takes to execute.
+    '''
     startTime = time()
     next()
     interval = (time() - startTime) * 1000
@@ -222,6 +232,9 @@ def time_measure(app:Application, req:HttpRequest, res:HttpResponse, next) -> No
 
 
 def validates_header(headerName:str, callback:Callable, notSuchHeaderStatus = 400, message:str=None) -> Callable[[],Callback]:
+    '''
+    Validates if "headerName" is present in the request and matches a "callback".
+    '''
     def child1(middleware:Callback) -> Callback:
         def child2(app:Application, req:HttpRequest, res:HttpResponse) -> None:
             if headerName in req.headers and callback(req.headers[headerName]):
@@ -233,6 +246,9 @@ def validates_header(headerName:str, callback:Callable, notSuchHeaderStatus = 40
 
 
 def requires_parameters(params:List[str]) -> Callable[[Callback], Callback]:
+    '''
+    Enforces the presence "params" int the request.
+    '''
     def inner(funct:Callback) -> Callback:
         def mutated(self:Application, req:HttpRequest, res:HttpResponse) -> None:
             missingParameters = [i for i in params if i not in [p for p in req.params]]
@@ -245,6 +261,7 @@ def requires_parameters(params:List[str]) -> Callable[[Callback], Callback]:
 
 
 def logs_execution(middleware:Callback) -> Callback:
+    '''Marks an endpoint to print every time it gets called.'''
     def inner(app:Application, req:HttpRequest, res:HttpResponse) -> None:
         print(f':::{req.method} {req.url} -> {middleware.__qualname__}')
         middleware(app, req, res)
@@ -253,6 +270,7 @@ def logs_execution(middleware:Callback) -> Callback:
 
 cache = {}
 def uses_cache(cacheSize:int) -> Callable[[Callback], Callback]:
+    '''Marks a endpoint to response to be cached by the server.'''
     def decorator(middleware: Callback):
         def inner(app:Application, req:HttpRequest, res:HttpResponse) -> None:
             if 'Cache-Control' in req.headers and req.headers['Cache-Control'] == 'no-cache':
@@ -271,6 +289,7 @@ def uses_cache(cacheSize:int) -> Callable[[Callback], Callback]:
 
 
 def uses_php(path:str, pointsTo:str, port:int, hostName:str='localhost', phpPath:str='php') -> Middleware:
+    '''Uses php to serve files in "path". Available only on windows.'''
     srv = PhpServer(pointsTo, port, hostName, phpPath).start()
     atexit.register(lambda: srv.stop())
     print(f'PHP server hosted at {hostName}:{port}')
@@ -281,8 +300,8 @@ def uses_php(path:str, pointsTo:str, port:int, hostName:str='localhost', phpPath
         next()
     return inner
 
-'''Minimal implementation of a middleware wich prints every endpoint registered'''
 def pico_swagger(app:Application, req:HttpRequest, res:HttpResponse) -> None:
+    '''Minimal implementation of a middleware wich prints every endpoint registered.'''
     swaggerSylesParameter = "stylesheet"
     endpointParameter = 'endpoint'
     if swaggerSylesParameter in req.params and req.params[swaggerSylesParameter] == '1':
@@ -321,8 +340,8 @@ def pico_swagger(app:Application, req:HttpRequest, res:HttpResponse) -> None:
             funct = app.routes[i][r]
     res.end(tag(html, "body", {"class":"sw-panel"})).content_type('text/html')
 
-'''Allows serving markdown files statically as html. Partially supported.'''
 def serve_static_markdown(base:str = 'markdown', extension:str = '.md', maxCached:int = 10, encoding:str = 'latin1') -> Middleware:
+    '''Allows serving markdown files statically as html. Partially supported.'''
     markdownCache = {}
     markdownKeys = []
     parser = create_python_markdown_parser()

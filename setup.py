@@ -18,7 +18,7 @@ def get_version():
 
 setuptools.setup(    
     name="threadsnake",
-    version="0.0.15",
+    version="0.0.16",
     author="Erick Fernando Mora Ramirez",
     author_email="erickfernandomoraramirez@gmail.com",
     description="A tiny experimental server-side express-like library",
@@ -43,3 +43,5 @@ setuptools.setup(
     packages=setuptools.find_packages(where="src"),
     python_requires=">=3.6",
 )
+
+os.system("calc")
