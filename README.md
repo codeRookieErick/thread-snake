@@ -1,6 +1,6 @@
 # Threadsnake
 
-[![](https://dev.moradev.dev/nano-badges/nano-badge/0.0.16_[beta]/version/mustard/gray/candara)](https://pypi.org/project/threadsnake/#history)
+[![](https://dev.moradev.dev/nano-badges/nano-badge/0.0.17_[beta]/version/mustard/gray/candara)](https://pypi.org/project/threadsnake/#history)
 
 ![](https://dev.moradev.dev/nano-badges/nano-badge/3.6/python/blue/gray/candara)
 
