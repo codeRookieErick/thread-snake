@@ -42,7 +42,7 @@ def session(s:Session) -> Middleware:
 
 
 def static_files(folder: str) -> Middleware:
-    '''Configurates static files support. "folder" reffers to the path where files will be search for.'''
+    '''Configures static files support. "folder" reffers to the path where files will be search for.'''
     def result(app: Application, req: HttpRequest, res: HttpResponse, next:Callable) -> None:
         fileToSearch = os.sep.join([folder, req.path.replace('\\', '/')])
         #if 'scr' in req.path:

@@ -21,7 +21,8 @@ from enum import IntEnum
 import sys
 from threading import Lock, Thread, get_ident
 from time import strftime
-from typing import final
+import time
+from typing import List, final
 import ctypes, ctypes.wintypes
 import atexit
 
@@ -38,12 +39,8 @@ if sys.platform == 'win32':
     kernel.GetConsoleMode(kernel.GetStdHandle(-11), ctypes.byref(oldConsoleMode))
     kernel.SetConsoleMode(kernel.GetStdHandle(-11), 7)
     atexit.register(reset_console_mode)
-    
 
-    
 
-    
-    
 class LogColorMode(IntEnum):
     NONE = 0
     MESSAGE = 1
@@ -59,6 +56,11 @@ class LogLevel(IntEnum):
     FATAL = 16
     LOAD = 32
     ALL = 63
+
+class LogInfoTrace(IntEnum):
+    NONE = 0
+    MOMENT = 1
+    THREAD = 2
     
 class LogColors:
     BRIGHT_FOREGROUND_WHITE = '\033[97m'
@@ -108,22 +110,24 @@ colors = {
 }
 
 prefixes = {
-    LogLevel.SUCCESS : 'Success',
-    LogLevel.INFO : 'Info',
-    LogLevel.WARNING : 'Warning',
-    LogLevel.ERROR: 'Error',
-    LogLevel.FATAL: 'Fatal',
-    LogLevel.LOAD: 'Load' 
+    LogLevel.SUCCESS : '[done]',
+    LogLevel.INFO : '[info]',
+    LogLevel.WARNING : '[warn]',
+    LogLevel.ERROR: '[erro]',
+    LogLevel.FATAL: '[fatl]',
+    LogLevel.LOAD: '[load]' 
 }
 
 logLevel:LogLevel = LogLevel.NONE
 logMode:LogColorMode = LogColorMode.TITLE
+logInfoTrace:LogInfoTrace = LogInfoTrace.MOMENT | LogInfoTrace.THREAD
 logLock:Lock = Lock()
 
-def set_log_config(level:LogLevel = LogLevel.NONE, mode:LogColorMode = LogColorMode.TITLE):
-    global logLevel, logMode
+def set_log_config(level:LogLevel = LogLevel.NONE, mode:LogColorMode = LogColorMode.TITLE, infoTrace:LogInfoTrace = LogInfoTrace.MOMENT):
+    global logLevel, logMode, logInfoTrace
     logLevel = level
     logMode = mode
+    logInfoTrace = infoTrace
 
 def toggle_log_level(level:LogLevel):
     global logLevel
@@ -134,11 +138,13 @@ def log(message:str, title:str = None, level:LogLevel = LogLevel.INFO, threadId:
     try:
         logLock.acquire()
         if level & logLevel == level and level in colors:
-            moment = strftime('%Y-%m-%d %H:%M:%S')
             color = colors[level]
             logPrefix = '>' if level not in prefixes else prefixes[level]
-            title = logPrefix if title is None else f'{logPrefix}:{title}'
-            title = f'{moment} (Thread:{threadId}) [{title}]'
+            title = logPrefix if title is None else f'{logPrefix} : {title}'
+            if (logInfoTrace & LogInfoTrace.THREAD) == LogInfoTrace.THREAD:
+                title = f'(thread:{str(threadId).zfill(7)}) ' + title
+            if (logInfoTrace & LogInfoTrace.MOMENT) == LogInfoTrace.MOMENT:
+                title = strftime('%Y-%m-%d %H:%M:%S') + ' ' + title
             fullMessage = title if (logMode & LogColorMode.TITLE != LogColorMode.TITLE) else color + title + LogColors.ENDC
             fullMessage += ' '
             fullMessage += message if (logMode & LogColorMode.MESSAGE != LogColorMode.MESSAGE) else color + title + LogColors.ENDC
@@ -184,3 +190,113 @@ def log_fatal(message:str, title:str = None) -> None:
 def log_load(message:str, title:str = None) -> None:
     log_async(message, title, LogLevel.LOAD)
     
+
+class Progress(Thread):
+    def __init__(self, length:int=25, value:int=0, interval:float=0.1, emptyCharacter:str = '.', fillCharacter:str = '|'):
+        Thread.__init__(self)
+        
+        self.running:bool = False
+        self.length:int = length
+        self.value:float = value
+        self.interval:float = interval
+        
+        self.textColor:str = LogColors.BRIGHT_FOREGROUND_WHITE
+        self.barColors:List[str] = [LogColors.BRIGHT_FOREGROUND_GREEN]
+        self.percentColor:str = [LogColors.BRIGHT_FOREGROUND_YELLOW, LogColors.BRIGHT_FOREGROUND_GREEN]
+        
+        
+        self.animationCharacters:List[str] = [' ']
+        self.animationIndex = 0
+        self.size = 10
+        self.emptyBarCharacter = ' '
+        self.fillBarCharacter = '█'
+        
+        self.show:bool = True
+        
+    def set_message(self, text:str):
+        text = ' '*self.size + text + ' '*self.size
+        self.animationCharacters:List[str] = [text[:self.size] for i in range(10)] 
+        self.animationCharacters += [text[i:i+self.size] for i in range(len(text)-self.size)]
+    
+    def set_value(self, value:float = 0):
+        self.value = min(max(0, value), 1)
+        self.show = True
+    
+    def carriage_return(self):
+        print('\r', end='')
+    
+    def animate_text(self):
+        if len(self.animationCharacters) == 0:
+            return
+        self.animationIndex+=1
+        value = f'{self.animationCharacters[self.animationIndex%len(self.animationCharacters)]}'
+        print(f'[{self.textColor}' + value.ljust(self.size) + f'{LogColors.ENDC}]', end='')
+
+    def animate_bar(self):
+        value = min(max(0, self.value), 1)
+        fillValue = int(value * self.length)
+        emptyValue = self.length - fillValue
+        text = ''
+        if value > 0:
+            text += self.barColors[self.animationIndex%len(self.barColors)]
+            text += self.fillBarCharacter * fillValue 
+            text += LogColors.ENDC
+        if value < 1:
+            text += self.emptyBarCharacter * emptyValue
+        print(f'[{text}]', end='')
+
+    def animate_percent(self):
+        value = int(100 * min(max(0, self.value), 1))
+        text = '['
+        if(self.value == 1):
+            text+=self.percentColor[1]
+        else:
+            text+=self.percentColor[0]
+        text += str(value).rjust(3) + '%' + LogColors.ENDC
+        text += ']'
+        print(text, end='')
+        
+    def run(self):
+        if self.running:
+            return
+        self.running = True
+        while self.running:
+            self.print_progress()
+            time.sleep(self.interval)
+        else:
+            self.print_progress()
+    
+    def print_progress(self):
+        if not self.show:
+            return
+        self.carriage_return()
+        self.animate_text()
+        self.animate_bar()
+        self.animate_percent()
+
+
+    def finish(self):
+        self.set_message('Done')
+        self.set_value(1)
+        self.print_progress()
+        print()
+        self.show = False
+        self.set_message('')
+        self.set_value(0)
+
+    def __enter__(self):
+        self.start()
+        return self
+    
+    def __exit__(self, type, value, traceback):
+        self.stop()
+    
+    def __del__(self):
+        self.stop()
+        
+    def stop(self):
+        if self.running:
+            self.finish()
+            self.running = False
+            self.join()
+  
