@@ -99,17 +99,24 @@ def multipart_form_data_parser(tempFilesFolder:str, filesDuration:int=60) -> Mid
         if req.contentType != None and 'multipart/form-data' in req.contentType:
             contentType, boundary = [i.strip() for i in req.contentType.split(';')]
             req.contentType = contentType
-            boundary = boundary.strip().replace('boundary=','')
+            boundary = boundary.strip().replace('boundary=','').replace('"', '')
             boundary = f'--{boundary}'
-            bodyParameters = [i.strip() for i in req.body.strip().split(boundary) if len(i.strip()) != 0 and i != '--']
-            #n = 0
+            body = req.body
+            if 'chunked' in req.headers.get('Transfer-Encoding', '') and '\r\n' in body:
+                res = ''
+                chunk_i = 1
+                while chunk_i > 0:
+                    split = body.split('\r\n', maxsplit=1)
+                    chunk, body = split if len(split) == 2 else [split[0], '']
+                    chunk_i = int(chunk, 16)
+                    res += body[:chunk_i]
+                    body = body[chunk_i+2:]
+                body = res
+            bodyParameters = [i.strip() for i in body.strip().split(boundary) if len(i.strip()) != 0 and i != '--']
             for param in bodyParameters:
-                #n+=1
                 paramHeader, paramValue = param.split('\r\n\r\n', maxsplit=1)
-                #save_bin(f'data{n}.txt', paramValue)
                 paramHeader = paramHeader.replace('\r\n', '; ').replace(': ', '=').replace('"', '')
                 paramHeader = dict([tuple(i.split('=', maxsplit=2)) for i in paramHeader.split('; ')])
-                #print(paramHeader)
                 if 'filename' in paramHeader:
                     fileName = paramHeader['filename']
                     tempFilePath = os.sep.join([tempFilesFolder, str(uuid4()).replace('-', '')])

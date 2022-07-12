@@ -18,6 +18,7 @@
 
 
 from functools import reduce
+import socket
 import time
 from types import FunctionType, ModuleType
 from typing import Any, Callable, Dict, List, Union
@@ -152,19 +153,28 @@ class Application(Server, Router):
         finally:
             self.stop()
 
-    def on_receive(self, data, clientPort, clientAddress):
-        data = data.decode('latin1')
-        if(len(data) == 0): return
+    def on_receive(self, data:bytes, clientPort:socket.socket, clientAddress):
+        data_s = data.decode('latin1')
+        if(len(data_s) == 0): return
         req = None
         res = HttpResponse()
         try:
-            req = HttpRequest(data, clientAddress)
+            req = HttpRequest(data_s, clientAddress)
         except Exception as e:
             log_error(e) ##TOKEN TO FIND
             res.status(403, "BadRequest")
             clientPort.send(str(res).encode('latin1'))
             return
         
+        if req.headers.get('Connection', '').lower() == 'keep-alive':
+            chunk:bytes = self.read(clientPort, 2)
+            if len(chunk) != 0:
+                log_warning(f'{clientAddress} kept alive...')
+                self.on_receive(b''.join([data, chunk]), clientPort, clientAddress)
+                return
+            else:
+                log_success(f'{clientAddress} ended...')
+
         log_info(f'response pipeline created') ##TOKEN TO FIND
         stack = self.stack.copy()
 
@@ -192,6 +202,7 @@ class Application(Server, Router):
                 pattern = route
                 pattern = re.sub(r"{([\w]+)\:int}", r"(?P<\1>[-]?[\\d]+)", pattern)
                 pattern = re.sub(r"{([\w]+)\:float}", r"(?P<\1>[-]?[\\d]+[\\.]?[\\d]?)", pattern)
+                pattern = re.sub(r"{([\w]+)\:re\(([\w\W]+?)\)}", r"(?P<\1>\2)", pattern)
                 pattern = re.sub(r"{([\w]+)}", r"(?P<\1>[\\w]+)", pattern)
                 pattern = "^" + pattern + "$"
                 match = re.match(pattern, req.path)
@@ -213,8 +224,9 @@ class Application(Server, Router):
         log_info(f'pipeline begin') ##TOKEN TO FIND
         next()
         log_info(f'pipeline end') ##TOKEN TO FIND
-        data = str(res).encode(res.encoding or 'latin1') #str(res).encode() if res.encoding is None else str(res).encode(res.encoding)
-        clientPort.send(data)
+        response:str = str(res).encode(res.encoding or 'latin1') #str(res).encode() if res.encoding is None else str(res).encode(res.encoding)
+        clientPort.send(response)
+        clientPort.close()
 
 Middleware = Callable[[Application, HttpRequest, HttpResponse, Callable[[], None]], None]
 Callback = Callable[[Application, HttpRequest, HttpResponse], None]

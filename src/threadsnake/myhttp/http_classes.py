@@ -18,6 +18,7 @@
 
 from functools import reduce
 import json
+from pydoc import cli
 import re
 import socket
 from threading import Thread
@@ -195,16 +196,16 @@ class HttpResponse:
     def __str__(self):
         if not self.cacheValue == None:
             return self.cacheValue
-        result = f"HTTP/1.1 {self.resposeStatus} {self.resposeText}\n"
+        result = f"HTTP/1.1 {self.resposeStatus} {self.resposeText}\r\n"
         if 'Location' not in self.headers: self.headers["Content-Length"] = len(self.body)
         if len(self.contentDisposition or '') > 0:
             self.headers['Content-Disposition'] = self.contentDisposition 
-        mappedHeaders = [f"{i}:{self.headers[i]}\n" for i in self.headers]
+        mappedHeaders = [f"{i}:{self.headers[i]}\r\n" for i in self.headers]
         for cookie in self.cookieHeaders:
             print(cookie)
-            mappedHeaders.append(f"Set-Cookie:{cookie}\n")
+            mappedHeaders.append(f"Set-Cookie:{cookie}\r\n")
         result += reduce(lambda a, b: a + b, mappedHeaders)
-        result += '\n'
+        result += '\r\n'
         result += self.body
         log_info(f'response rendered') ##TOKEN_TO_FIND
         return result
@@ -293,11 +294,14 @@ class Server(Thread):
     def on_receive(self, data:bytes, clientPort:socket.socket, clientAddress:str):
         raise NotImplementedError()
     
-    def on_accept(self, client:socket.socket, address:str):
+    def on_accept(self, client:socket.socket, address:str, readTimeout:int = None):
+        self.on_receive(self.read(client, readTimeout), client, address)
+
+    def read(self, client:socket.socket, readTimeout:int = None) -> bytes:
         data = []
         timeout = client.gettimeout()
         try:
-            client.settimeout(self.readTimeout)
+            client.settimeout(readTimeout or self.readTimeout)
             while True:
                 try:
                     buffer:bytes = client.recv(self.bufferSize)
@@ -308,8 +312,7 @@ class Server(Thread):
                     break
         finally:
             client.settimeout(timeout)
-        self.on_receive(bytes(data), client, address)
-        client.close()
+        return bytes(data)
         
     def next_free(self, port:int, max_port=65535):
         sock = self.get_socket()
@@ -333,7 +336,7 @@ class Server(Thread):
             log_warning(f'Port {self.port} already in use. Using port {port} instead.')
             self.port = port
         srv = self.get_socket()
-        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         srv.bind((self.hostname, self.port))
         srv.listen(self.backlog)
         log_success(f'server sucessfully started') ##TOKEN_TO_FIND
