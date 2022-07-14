@@ -196,16 +196,16 @@ class HttpResponse:
     def __str__(self):
         if not self.cacheValue == None:
             return self.cacheValue
-        result = f"HTTP/1.1 {self.resposeStatus} {self.resposeText}\r\n"
+        result = f"HTTP/1.1 {self.resposeStatus} {self.resposeText}\n"
         if 'Location' not in self.headers: self.headers["Content-Length"] = len(self.body)
         if len(self.contentDisposition or '') > 0:
             self.headers['Content-Disposition'] = self.contentDisposition 
-        mappedHeaders = [f"{i}:{self.headers[i]}\r\n" for i in self.headers]
+        mappedHeaders = [f"{i}:{self.headers[i]}\n" for i in self.headers]
         for cookie in self.cookieHeaders:
             print(cookie)
-            mappedHeaders.append(f"Set-Cookie:{cookie}\r\n")
+            mappedHeaders.append(f"Set-Cookie:{cookie}\n")
         result += reduce(lambda a, b: a + b, mappedHeaders)
-        result += '\r\n'
+        result += '\n'
         result += self.body
         log_info(f'response rendered') ##TOKEN_TO_FIND
         return result
@@ -219,6 +219,9 @@ class HttpResponse:
         if path != None: cookieString += f"; Path={path}"
         log_info(f'cookie set: {name}={cookieString}') ##TOKEN_TO_FIND
         self.cookieHeaders.append(f"{name}={cookieString}")
+
+    def to_bytes(self) -> bytes:
+        return str(self).encode(self.encoding or 'latin1')
 
 class HttpRequest:
     __slots__ = [
@@ -294,8 +297,10 @@ class Server(Thread):
     def on_receive(self, data:bytes, clientPort:socket.socket, clientAddress:str):
         raise NotImplementedError()
     
-    def on_accept(self, client:socket.socket, address:str, readTimeout:int = None):
+    def on_accept(self, client:socket.socket, address:str, readTimeout:int = None, closeSocket:bool = True):
         self.on_receive(self.read(client, readTimeout), client, address)
+        if closeSocket:
+            client.close()
 
     def read(self, client:socket.socket, readTimeout:int = None) -> bytes:
         data = []
@@ -336,7 +341,7 @@ class Server(Thread):
             log_warning(f'Port {self.port} already in use. Using port {port} instead.')
             self.port = port
         srv = self.get_socket()
-        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
         srv.bind((self.hostname, self.port))
         srv.listen(self.backlog)
         log_success(f'server sucessfully started') ##TOKEN_TO_FIND
@@ -344,7 +349,6 @@ class Server(Thread):
             try:
                 log_success(f'listening for new requests') ##TOKEN_TO_FIND
                 (client, address) = srv.accept()
-                client.settimeout(self.readTimeout)
                 log_info(f'new requests from {address}') ##TOKEN_TO_FIND
                 Thread(target=(lambda :self.on_accept(client, address))).start()
             except Exception as e:

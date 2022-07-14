@@ -224,9 +224,7 @@ class Application(Server, Router):
         log_info(f'pipeline begin') ##TOKEN TO FIND
         next()
         log_info(f'pipeline end') ##TOKEN TO FIND
-        response:str = str(res).encode(res.encoding or 'latin1') #str(res).encode() if res.encoding is None else str(res).encode(res.encoding)
-        clientPort.send(response)
-        clientPort.close()
+        clientPort.send(res.to_bytes())
 
 Middleware = Callable[[Application, HttpRequest, HttpResponse, Callable[[], None]], None]
 Callback = Callable[[Application, HttpRequest, HttpResponse], None]
