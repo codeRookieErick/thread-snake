@@ -167,7 +167,7 @@ class Application(Server, Router):
             return
         
         if req.headers.get('Connection', '').lower() == 'keep-alive':
-            chunk:bytes = self.read(clientPort, 2)
+            chunk:bytes = self.read(clientPort, 0.025)
             if len(chunk) != 0:
                 log_warning(f'{clientAddress} kept alive...')
                 self.on_receive(b''.join([data, chunk]), clientPort, clientAddress)

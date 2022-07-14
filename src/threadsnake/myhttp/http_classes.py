@@ -344,6 +344,7 @@ class Server(Thread):
             try:
                 log_success(f'listening for new requests') ##TOKEN_TO_FIND
                 (client, address) = srv.accept()
+                client.settimeout(self.readTimeout)
                 log_info(f'new requests from {address}') ##TOKEN_TO_FIND
                 Thread(target=(lambda :self.on_accept(client, address))).start()
             except Exception as e:
