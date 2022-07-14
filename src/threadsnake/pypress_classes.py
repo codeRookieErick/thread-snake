@@ -168,7 +168,7 @@ class Application(Server, Router):
         
         if req.headers.get('Connection', '').lower() == 'keep-alive':
             log_warning(f'Connection from {clientAddress} requested kept-alive!')
-            chunk:bytes = self.read(clientPort, 0.1)
+            chunk:bytes = self.read(clientPort, 2)
             if len(chunk) != 0:
                 self.on_receive(b''.join([data, chunk]), clientPort, clientAddress)
                 return

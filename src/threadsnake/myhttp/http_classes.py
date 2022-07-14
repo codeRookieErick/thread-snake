@@ -342,7 +342,7 @@ class Server(Thread):
             log_warning(f'Port {self.port} already in use. Using port {port} instead.')
             self.port = port
         srv = self.get_socket()
-        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         srv.bind((self.hostname, self.port))
         srv.listen(self.backlog)
         log_success(f'server sucessfully started') ##TOKEN_TO_FIND
