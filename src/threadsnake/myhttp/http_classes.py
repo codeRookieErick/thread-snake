@@ -117,6 +117,7 @@ class HttpResponse:
         self.contentDisposition = ''
         self.cacheValue = None
         self.encoding = None
+        self.lineSep = '\r\n'
 
     def set_encoding(self, encoding:str):
         log_info(f'encoding set to {encoding}') ##TOKEN_TO_FIND
@@ -196,16 +197,16 @@ class HttpResponse:
     def __str__(self):
         if not self.cacheValue == None:
             return self.cacheValue
-        result = f"HTTP/1.1 {self.resposeStatus} {self.resposeText}\n"
+        result = f"HTTP/1.1 {self.resposeStatus} {self.resposeText}{self.lineSep}"
         if 'Location' not in self.headers: self.headers["Content-Length"] = len(self.body)
         if len(self.contentDisposition or '') > 0:
             self.headers['Content-Disposition'] = self.contentDisposition 
-        mappedHeaders = [f"{i}:{self.headers[i]}\n" for i in self.headers]
+        mappedHeaders = [f"{i}:{self.headers[i]}{self.lineSep}" for i in self.headers]
         for cookie in self.cookieHeaders:
             print(cookie)
-            mappedHeaders.append(f"Set-Cookie:{cookie}\n")
+            mappedHeaders.append(f"Set-Cookie:{cookie}{self.lineSep}")
         result += reduce(lambda a, b: a + b, mappedHeaders)
-        result += '\n'
+        result += f'{self.lineSep}'
         result += self.body
         log_info(f'response rendered') ##TOKEN_TO_FIND
         return result
